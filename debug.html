@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>除錯頁面</title>
+</head>
+<body style="font-family: monospace; padding: 20px; font-size: 14px; line-height: 1.8;">
+<h2>載入診斷</h2>
+<div id="log"></div>
+
+<script>
+function log(msg, ok) {
+  var div = document.getElementById("log");
+  var line = document.createElement("div");
+  line.style.color = ok ? "green" : "red";
+  line.textContent = (ok ? "OK " : "FAIL ") + msg;
+  div.appendChild(line);
+}
+log("HTML loaded", true);
+</script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"
+  onload="log('React loaded', true)" onerror="log('React FAILED', false)"></script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"
+  onload="log('ReactDOM loaded', true)" onerror="log('ReactDOM FAILED', false)"></script>
+
+<script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"
+  onload="log('XLSX loaded', true)" onerror="log('XLSX FAILED', false)"></script>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"
+  onload="log('Firebase App loaded', true)" onerror="log('Firebase App FAILED', false)"></script>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"
+  onload="log('Firebase Firestore loaded', true)" onerror="log('Firebase Firestore FAILED', false)"></script>
+
+<script>
+window.addEventListener("load", function () {
+  log("all resources load event fired", true);
+  log("typeof React = " + typeof React, typeof React !== "undefined");
+  log("typeof ReactDOM = " + typeof ReactDOM, typeof ReactDOM !== "undefined");
+  log("typeof XLSX = " + typeof XLSX, typeof XLSX !== "undefined");
+  log("typeof firebase = " + typeof firebase, typeof firebase !== "undefined");
+
+  if (typeof firebase !== "undefined") {
+    try {
+      firebase.initializeApp({
+        apiKey: "AIzaSyBXKXp7JWpjopZUV01nfN1GvWWpe2LOsuQ",
+        authDomain: "sampo-58f06.firebaseapp.com",
+        projectId: "sampo-58f06",
+        storageBucket: "sampo-58f06.firebasestorage.app",
+        messagingSenderId: "476808643013",
+        appId: "1:476808643013:web:f170a4300497cd4b5a8bac"
+      });
+      log("Firebase init OK", true);
+      var db = firebase.firestore();
+      log("Firestore object OK", true);
+      db.collection("inventory").doc("current").get().then(function (doc) {
+        log("Firestore connect OK, exists=" + doc.exists, true);
+      }).catch(function (err) {
+        log("Firestore connect FAILED: " + err.message, false);
+      });
+    } catch (e) {
+      log("Firebase init EXCEPTION: " + e.message, false);
+    }
+  }
+});
+
+window.addEventListener("error", function (e) {
+  log("GLOBAL ERROR: " + e.message + " at " + e.filename + ":" + e.lineno, false);
+}, true);
+</script>
+</body>
+</html>
