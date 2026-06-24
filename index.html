@@ -9,6 +9,7 @@
 <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js" crossorigin="anonymous"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js" crossorigin="anonymous"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js" crossorigin="anonymous"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js" crossorigin="anonymous"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { background: #F2F4F8; font-family: 'PingFang TC','Noto Sans TC','Microsoft JhengHei',sans-serif; }
@@ -58,6 +59,7 @@ var firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 var db = firebase.firestore();
+var auth = firebase.auth();
 var DOC_REF = db.collection("inventory").doc("current");
 
 // ── 設定 ──────────────────────────────────────────────────────
@@ -142,7 +144,69 @@ function ProductRow(props) {
   );
 }
 
-// ── 主 APP ────────────────────────────────────────────────────
+function LoginForm() {
+  var emailState = useState("");
+  var email = emailState[0], setEmail = emailState[1];
+  var pwState = useState("");
+  var pw = pwState[0], setPw = pwState[1];
+  var errState = useState("");
+  var err = errState[0], setErr = errState[1];
+  var busyState = useState(false);
+  var busy = busyState[0], setBusy = busyState[1];
+
+  function handleLogin() {
+    if (!email || !pw) {
+      setErr("請輸入帳號與密碼");
+      return;
+    }
+    setBusy(true);
+    setErr("");
+    auth.signInWithEmailAndPassword(email, pw).then(function () {
+      setBusy(false);
+    }).catch(function () {
+      setBusy(false);
+      setErr("登入失敗，請確認帳號密碼是否正確");
+    });
+  }
+
+  return h("div", { style: { background: "#fff", borderRadius: 14, padding: 24, boxShadow: "0 1px 6px rgba(0,0,0,0.07)" } },
+    h("div", { style: { fontWeight: 800, fontSize: 16, color: "#1A237E", marginBottom: 4 } }, "🔒 管理者登入"),
+    h("div", { style: { fontSize: 12, color: "#888", marginBottom: 16 } }, "請輸入管理者帳號密碼以進入管理頁面"),
+    h("input", {
+      type: "email",
+      value: email,
+      onChange: function (e) { setEmail(e.target.value); },
+      placeholder: "電子郵件",
+      style: {
+        width: "100%", boxSizing: "border-box", padding: "11px 12px", marginBottom: 10,
+        borderRadius: 10, border: "1.5px solid #E0E0E0", fontSize: 14, outline: "none", fontFamily: "inherit"
+      }
+    }),
+    h("input", {
+      type: "password",
+      value: pw,
+      onChange: function (e) { setPw(e.target.value); },
+      placeholder: "密碼",
+      onKeyDown: function (e) { if (e.key === "Enter") handleLogin(); },
+      style: {
+        width: "100%", boxSizing: "border-box", padding: "11px 12px", marginBottom: 14,
+        borderRadius: 10, border: "1.5px solid #E0E0E0", fontSize: 14, outline: "none", fontFamily: "inherit"
+      }
+    }),
+    err ? h("div", { style: { color: "#C62828", fontSize: 12, marginBottom: 10 } }, err) : null,
+    h("button", {
+      onClick: handleLogin,
+      disabled: busy,
+      style: {
+        width: "100%", padding: "12px", borderRadius: 10, border: "none",
+        background: "#1A237E", color: "#fff", fontWeight: 700, fontSize: 14,
+        cursor: busy ? "not-allowed" : "pointer", fontFamily: "inherit"
+      }
+    }, busy ? "登入中…" : "登入")
+  );
+}
+
+
 function InventoryApp() {
   var dataState = useState([]);
   var data = dataState[0], setData = dataState[1];
@@ -168,7 +232,26 @@ function InventoryApp() {
   var isUploadingState = useState(false);
   var isUploading = isUploadingState[0], setIsUploading = isUploadingState[1];
 
+  var userState = useState(null);
+  var currentUser = userState[0], setCurrentUser = userState[1];
+
+  var authLoadingState = useState(true);
+  var authLoading = authLoadingState[0], setAuthLoading = authLoadingState[1];
+
   var fileRef = useRef();
+
+  useEffect(function () {
+    var unsubscribeAuth = auth.onAuthStateChanged(function (user) {
+      setCurrentUser(user || null);
+      setAuthLoading(false);
+    });
+    return function () { unsubscribeAuth(); };
+  }, []);
+
+  function handleLogout() {
+    auth.signOut();
+    setTab("查詢");
+  }
 
   useEffect(function () {
     var unsubscribe = DOC_REF.onSnapshot(
@@ -456,7 +539,9 @@ function InventoryApp() {
 
   // ── 管理分頁內容 ──
   var manageContent = null;
-  if (tab === "管理") {
+  if (tab === "管理" && !currentUser) {
+    manageContent = h(LoginForm);
+  } else if (tab === "管理" && currentUser) {
     var ruleRows = CATEGORY_LIST.map(function (cat) {
       var c = CATEGORY_COLORS[cat];
       var rule = null;
@@ -483,6 +568,17 @@ function InventoryApp() {
     });
 
     manageContent = h("div", { style: { display: "flex", flexDirection: "column", gap: 14 } },
+      h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", background: "#fff", borderRadius: 14, padding: "12px 16px", boxShadow: "0 1px 6px rgba(0,0,0,0.07)" } },
+        h("div", { style: { fontSize: 12, color: "#666" } }, "👤 已登入：" + currentUser.email),
+        h("button", {
+          onClick: handleLogout,
+          style: {
+            padding: "6px 14px", borderRadius: 8, border: "1.5px solid #E0E0E0",
+            background: "#fff", color: "#C62828", fontWeight: 700, fontSize: 12,
+            cursor: "pointer", fontFamily: "inherit"
+          }
+        }, "登出")
+      ),
       h("div", { style: { background: "#fff", borderRadius: 14, padding: 20, boxShadow: "0 1px 6px rgba(0,0,0,0.07)" } },
         h("div", { style: { fontWeight: 800, fontSize: 16, color: "#1A237E", marginBottom: 4 } }, "📤 上傳 SAP 庫存表"),
         h("div", { style: { fontSize: 12, color: "#888", marginBottom: 16, lineHeight: 1.6 } },
