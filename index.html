@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>家電庫存查詢</title>
+<title>聲寶家電庫存查詢</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js" crossorigin="anonymous"></script>
@@ -352,8 +352,8 @@ function InventoryApp() {
   },
     h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start" } },
       h("div", null,
-        h("div", { style: { color: "rgba(255,255,255,0.6)", fontSize: 11, letterSpacing: 2, textTransform: "uppercase" } }, "即時庫存系統"),
-        h("div", { style: { color: "#fff", fontSize: 20, fontWeight: 800, marginTop: 2 } }, "家電庫存查詢")
+        h("div", { style: { color: "rgba(255,255,255,0.6)", fontSize: 11, letterSpacing: 2, textTransform: "uppercase" } }, "庫存查詢系統"),
+        h("div", { style: { color: "#fff", fontSize: 20, fontWeight: 800, marginTop: 2 } }, "聲寶家電庫存查詢")
       ),
       lastUpdated ? h("div", { style: { textAlign: "right" } },
         h("div", { style: { color: "rgba(255,255,255,0.5)", fontSize: 10 } }, "上次更新"),
@@ -387,23 +387,6 @@ function InventoryApp() {
         h("div", { style: { marginTop: 4, fontSize: 12 } }, "請至「管理」分頁上傳 SAP 庫存表")
       );
     } else {
-      var statsCards = [
-        { label: "總品項", value: stats.total, color: "#1A237E" },
-        { label: "總庫存", value: stats.totalUnits + " 台", color: "#2E7D32" },
-        { label: "庫存不足", value: stats.lowStock, color: "#E65100", alert: stats.lowStock > 0 },
-        { label: "無庫存", value: stats.outOfStock, color: "#C62828", alert: stats.outOfStock > 0 }
-      ].map(function (s) {
-        return h("div", {
-          key: s.label,
-          style: {
-            background: "#fff", borderRadius: 12, padding: "12px 14px",
-            boxShadow: s.alert ? "0 0 0 2px " + s.color + "30" : "0 1px 4px rgba(0,0,0,0.06)"
-          }
-        },
-          h("div", { style: { fontSize: 11, color: "#999", fontWeight: 500 } }, s.label),
-          h("div", { style: { fontSize: 22, fontWeight: 800, color: s.color, marginTop: 2 } }, s.value)
-        );
-      });
 
       var groups = {};
       filtered.forEach(function (item) {
@@ -430,7 +413,6 @@ function InventoryApp() {
           });
 
       queryContent = h(React.Fragment, null,
-        h("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 } }, statsCards),
         alertItems.length > 0 ? h("div", {
           style: {
             background: "#FFF8E1", borderRadius: 10, padding: "10px 14px",
@@ -440,19 +422,6 @@ function InventoryApp() {
           h("span", { style: { fontSize: 18 } }, "⚠️"),
           h("span", { style: { fontSize: 12, color: "#E65100", fontWeight: 600, lineHeight: 1.5 } }, alertItems.length + " 項產品庫存不足或缺貨")
         ) : null,
-        h("div", { style: { position: "relative", marginBottom: 10 } },
-          h("span", { style: { position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 16 } }, "🔍"),
-          h("input", {
-            value: search,
-            onChange: function (e) { setSearch(e.target.value); },
-            placeholder: "搜尋型號…",
-            style: {
-              width: "100%", boxSizing: "border-box", padding: "11px 12px 11px 38px",
-              borderRadius: 10, border: "1.5px solid #E0E0E0", fontSize: 14, outline: "none",
-              background: "#fff", fontFamily: "inherit"
-            }
-          })
-        ),
         h("div", { style: { display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4, marginBottom: 10 } },
           categories.map(function (c) {
             return h("button", {
