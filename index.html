@@ -193,6 +193,115 @@ function LoginForm() {
   );
 }
 
+function AdjustPanel(props) {
+  var data = props.data;
+  var onApply = props.onApply;
+
+  var searchState = useState("");
+  var search = searchState[0], setSearch = searchState[1];
+  var selectedState = useState(null);
+  var selected = selectedState[0], setSelected = selectedState[1];
+  var deltaState = useState("");
+  var delta = deltaState[0], setDelta = deltaState[1];
+  var msgState = useState("");
+  var msg = msgState[0], setMsg = msgState[1];
+  var busyState = useState(false);
+  var busy = busyState[0], setBusy = busyState[1];
+
+  var q = search.trim().toLowerCase();
+  var matches = q ? data.filter(function (it) { return it.model.toLowerCase().indexOf(q) !== -1; }).slice(0, 8) : [];
+
+  function applyAdjust() {
+    var d = Number(delta);
+    if (!selected || !delta || isNaN(d) || d === 0) {
+      setMsg("請選擇型號並輸入非零的調整數量");
+      return;
+    }
+    setBusy(true);
+    setMsg("");
+    onApply(selected.model, d).then(function (newStock) {
+      setBusy(false);
+      setMsg("✅ 已調整「" + selected.model + "」，最新庫存：" + newStock);
+      setDelta("");
+      setSelected(null);
+      setSearch("");
+    }).catch(function () {
+      setBusy(false);
+      setMsg("❌ 調整失敗，請稍後再試");
+    });
+  }
+
+  return h("div", { style: { background: "#fff", borderRadius: 14, padding: 20, boxShadow: "0 1px 6px rgba(0,0,0,0.07)" } },
+    h("div", { style: { fontWeight: 800, fontSize: 16, color: "#1A237E", marginBottom: 4 } }, "✏️ 手動調整單一型號數量"),
+    h("div", { style: { fontSize: 12, color: "#888", marginBottom: 14, lineHeight: 1.6 } },
+      "搜尋型號後輸入調整數量（正數增加、負數減少），會直接套用到查詢頁的最終庫存。下次上傳新庫存表時，調整量會被覆蓋。"
+    ),
+
+    selected
+      ? h("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "#F8F9FF", borderRadius: 8, marginBottom: 10 } },
+          h("div", null,
+            h("div", { style: { fontSize: 13, fontWeight: 700, color: "#1A237E" } }, selected.model),
+            h("div", { style: { fontSize: 11, color: "#888", marginTop: 2 } }, "目前庫存：" + selected.stock)
+          ),
+          h("button", {
+            onClick: function () { setSelected(null); setSearch(""); },
+            style: { fontSize: 12, color: "#C62828", border: "none", background: "none", cursor: "pointer", fontFamily: "inherit" }
+          }, "✕ 重選")
+        )
+      : h("div", { style: { position: "relative", marginBottom: 10 } },
+          h("input", {
+            value: search,
+            onChange: function (e) { setSearch(e.target.value); },
+            placeholder: "搜尋型號…",
+            style: {
+              width: "100%", boxSizing: "border-box", padding: "11px 12px",
+              borderRadius: 10, border: "1.5px solid #E0E0E0", fontSize: 14, outline: "none", fontFamily: "inherit"
+            }
+          }),
+          matches.length > 0
+            ? h("div", { style: { border: "1px solid #E0E0E0", borderRadius: 8, marginTop: 6, overflow: "hidden" } },
+                matches.map(function (it) {
+                  return h("div", {
+                    key: it.model,
+                    onClick: function () { setSelected(it); },
+                    style: {
+                      padding: "9px 12px", borderBottom: "1px solid #F0F0F0", cursor: "pointer",
+                      display: "flex", justifyContent: "space-between", fontSize: 13
+                    }
+                  },
+                    h("span", { style: { fontWeight: 600 } }, it.model),
+                    h("span", { style: { color: "#888" } }, "庫存 " + it.stock)
+                  );
+                })
+              )
+            : null
+        ),
+
+    selected ? h("input", {
+      type: "number",
+      value: delta,
+      onChange: function (e) { setDelta(e.target.value); },
+      placeholder: "調整數量，例如 5 或 -3",
+      style: {
+        width: "100%", boxSizing: "border-box", padding: "11px 12px", marginBottom: 10,
+        borderRadius: 10, border: "1.5px solid #E0E0E0", fontSize: 14, outline: "none", fontFamily: "inherit"
+      }
+    }) : null,
+
+    msg ? h("div", { style: { fontSize: 12, marginBottom: 10, color: msg.indexOf("✅") === 0 ? "#2E7D32" : "#C62828" } }, msg) : null,
+
+    selected ? h("button", {
+      onClick: applyAdjust,
+      disabled: busy,
+      style: {
+        width: "100%", padding: "12px", borderRadius: 10, border: "none",
+        background: "#1A237E", color: "#fff", fontWeight: 700, fontSize: 14,
+        cursor: busy ? "not-allowed" : "pointer", fontFamily: "inherit"
+      }
+    }, busy ? "套用中…" : "套用調整") : null
+  );
+}
+
 
 function InventoryApp() {
   var dataState = useState([]);
@@ -373,6 +482,27 @@ function InventoryApp() {
     };
     reader.readAsBinaryString(file);
     e.target.value = "";
+  }
+
+  function handleAdjust(model, delta) {
+    return DOC_REF.get().then(function (doc) {
+      var payload = doc.exists ? doc.data() : { items: [] };
+      var items = payload.items || [];
+      var found = null;
+      for (var i = 0; i < items.length; i++) {
+        if (items[i].model === model) { found = items[i]; break; }
+      }
+      if (!found) {
+        throw new Error("找不到型號");
+      }
+      found.stock = (found.stock || 0) + delta;
+      if (found.stock < 0) found.stock = 0;
+
+      var now = new Date().toLocaleString("zh-TW", { hour12: false });
+      return DOC_REF.set({ items: items, updatedAt: now }).then(function () {
+        return found.stock;
+      });
+    });
   }
 
   // ── Header ──
@@ -560,6 +690,7 @@ function InventoryApp() {
           }
         }, uploadMsg) : null
       ),
+      h(AdjustPanel, { data: data, onApply: handleAdjust }),
       h("div", { style: { background: "#fff", borderRadius: 14, padding: 20, boxShadow: "0 1px 6px rgba(0,0,0,0.07)" } },
         h("div", { style: { fontWeight: 700, fontSize: 14, color: "#333", marginBottom: 12 } }, "📋 自動分類規則"),
         h("div", { style: { display: "flex", flexDirection: "column", gap: 8 } }, ruleRows),
