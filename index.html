@@ -70,8 +70,12 @@ var PREFIX_RULES = [
   { prefixes: ["SRF"],      category: "冷凍櫃" },
   { prefixes: ["SR"],       category: "冰箱" },
   { prefixes: ["ES"],       category: "洗衣機" },
+  { prefixes: ["AW-PF", "AW-LH", "AW-RH"], category: "窗型冷氣" },
   { prefixes: ["AU"],       category: "冷氣室外機" },
-  { prefixes: ["AM"],       category: "冷氣室內機" }
+  { prefixes: ["AM"],       category: "冷氣室內機" },
+  { prefixes: ["RAU-HA"],   category: "瑞智分離式冷氣外機" },
+  { prefixes: ["RAM-HA"],   category: "瑞智分離式冷氣內機" },
+  { prefixes: ["RAW-HA"],   category: "瑞智窗型冷氣" }
 ];
 
 function getCategory(model) {
@@ -85,19 +89,25 @@ function getCategory(model) {
   return null;
 }
 
-var CATEGORY_LIST = ["電視", "冰箱", "冷凍櫃", "洗衣機", "冷氣室外機", "冷氣室內機"];
+var CATEGORY_LIST = ["電視", "冰箱", "冷凍櫃", "洗衣機", "窗型冷氣", "冷氣室外機", "冷氣室內機", "瑞智分離式冷氣外機", "瑞智分離式冷氣內機", "瑞智窗型冷氣"];
 
 var CATEGORY_COLORS = {
   "電視":      { bg: "#F3E5F5", text: "#6A1B9A", dot: "#9C27B0" },
   "冰箱":      { bg: "#E8F5E9", text: "#2E7D32", dot: "#4CAF50" },
   "冷凍櫃":    { bg: "#E1F5FE", text: "#0277BD", dot: "#03A9F4" },
   "洗衣機":    { bg: "#FFF3E0", text: "#E65100", dot: "#FF9800" },
+  "窗型冷氣":  { bg: "#FCE4EC", text: "#AD1457", dot: "#EC407A" },
   "冷氣室外機": { bg: "#E8F4FD", text: "#1A6B9A", dot: "#2196F3" },
-  "冷氣室內機": { bg: "#E0F7FA", text: "#00695C", dot: "#00BCD4" }
+  "冷氣室內機": { bg: "#E0F7FA", text: "#00695C", dot: "#00BCD4" },
+  "瑞智分離式冷氣外機": { bg: "#EDE7F6", text: "#4527A0", dot: "#7E57C2" },
+  "瑞智分離式冷氣內機": { bg: "#F3E5F5", text: "#6A1B9A", dot: "#AB47BC" },
+  "瑞智窗型冷氣":       { bg: "#FFF8E1", text: "#F9A825", dot: "#FFCA28" }
 };
 
 var DEFAULT_THRESHOLD = {
-  "電視": 10, "冰箱": 10, "冷凍櫃": 10, "洗衣機": 10, "冷氣室外機": 5, "冷氣室內機": 5
+  "電視": 10, "冰箱": 10, "冷凍櫃": 10, "洗衣機": 10, "窗型冷氣": 5,
+  "冷氣室外機": 5, "冷氣室內機": 5,
+  "瑞智分離式冷氣外機": 5, "瑞智分離式冷氣內機": 5, "瑞智窗型冷氣": 5
 };
 
 // ── 小元件 ────────────────────────────────────────────────────
@@ -474,7 +484,7 @@ function InventoryApp() {
       return h("div", { key: cat, style: { display: "flex", alignItems: "center", gap: 10 } },
         h("span", { style: { width: 10, height: 10, borderRadius: "50%", background: c.dot, flexShrink: 0 } }),
         h("span", { style: { fontSize: 13, fontWeight: 700, color: "#333", width: 78 } }, cat),
-        h("span", { style: { fontSize: 12, color: "#888", fontFamily: "monospace" } }, rule.prefixes.map(function (p) { return p + "-"; }).join(" / ") + " 開頭")
+        h("span", { style: { fontSize: 12, color: "#888", fontFamily: "monospace" } }, rule.prefixes.map(function (p) { return p.indexOf("-") !== -1 ? p : p + "-"; }).join(" / ") + " 開頭")
       );
     });
 
