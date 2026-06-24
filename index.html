@@ -67,6 +67,7 @@ var TARGET_LOCATION = "4326";
 
 var PREFIX_RULES = [
   { prefixes: ["EM", "QM"], category: "電視" },
+  { prefixes: ["SRF"],      category: "冷凍櫃" },
   { prefixes: ["SR"],       category: "冰箱" },
   { prefixes: ["ES"],       category: "洗衣機" },
   { prefixes: ["AU"],       category: "冷氣室外機" },
@@ -84,18 +85,19 @@ function getCategory(model) {
   return null;
 }
 
-var CATEGORY_LIST = ["電視", "冰箱", "洗衣機", "冷氣室外機", "冷氣室內機"];
+var CATEGORY_LIST = ["電視", "冰箱", "冷凍櫃", "洗衣機", "冷氣室外機", "冷氣室內機"];
 
 var CATEGORY_COLORS = {
   "電視":      { bg: "#F3E5F5", text: "#6A1B9A", dot: "#9C27B0" },
   "冰箱":      { bg: "#E8F5E9", text: "#2E7D32", dot: "#4CAF50" },
+  "冷凍櫃":    { bg: "#E1F5FE", text: "#0277BD", dot: "#03A9F4" },
   "洗衣機":    { bg: "#FFF3E0", text: "#E65100", dot: "#FF9800" },
   "冷氣室外機": { bg: "#E8F4FD", text: "#1A6B9A", dot: "#2196F3" },
   "冷氣室內機": { bg: "#E0F7FA", text: "#00695C", dot: "#00BCD4" }
 };
 
 var DEFAULT_THRESHOLD = {
-  "電視": 10, "冰箱": 10, "洗衣機": 10, "冷氣室外機": 5, "冷氣室內機": 5
+  "電視": 10, "冰箱": 10, "冷凍櫃": 10, "洗衣機": 10, "冷氣室外機": 5, "冷氣室內機": 5
 };
 
 // ── 小元件 ────────────────────────────────────────────────────
