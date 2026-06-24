@@ -113,16 +113,16 @@ var DEFAULT_THRESHOLD = {
 // ── 小元件 ────────────────────────────────────────────────────
 function ProductRow(props) {
   var item = props.item;
-  var cat = CATEGORY_COLORS[item.category] || { dot: "#999" };
   var hasStock = item.stock > 0;
+  var dotColor = hasStock ? "#4CAF50" : "#E53935";
   return h("div", {
     style: {
       display: "flex", alignItems: "center", justifyContent: "space-between",
       padding: "10px 14px", background: "#fff", borderBottom: "1px solid #F0F0F0"
     }
   },
-    h("div", { style: { display: "flex", alignItems: "center", gap: 8, minWidth: 0, flex: 1 } },
-      h("span", { style: { width: 8, height: 8, borderRadius: "50%", background: cat.dot, flexShrink: 0 } }),
+    h("div", { style: { display: "flex", alignItems: "center", gap: 10, minWidth: 0, flex: 1 } },
+      h("span", { style: { width: 14, height: 14, borderRadius: "50%", background: dotColor, flexShrink: 0 } }),
       h("span", { style: { fontSize: 14, fontWeight: 600, color: "#1A1A2E", wordBreak: "break-all" } }, item.model)
     ),
     h("span", {
@@ -262,10 +262,33 @@ function InventoryApp() {
 
   var categories = ["全部"].concat(CATEGORY_LIST);
 
+  // 將搜尋字串展開成多個比對關鍵字。
+  // 支援 "AU/AM-HF28D" 這種語法 -> ["au-hf28d", "am-hf28d"]
+  function expandSearchTerms(raw) {
+    var q = raw.trim().toLowerCase();
+    if (!q) return [];
+    var slashIdx = q.indexOf("/");
+    if (slashIdx === -1) return [q];
+
+    // 嘗試找出 "/" 之後、下一個"-"之前的共同後段
+    // 例如 "au/am-hf28d" -> prefixes: ["au","am"], suffix: "hf28d"
+    var afterSlash = q.slice(slashIdx + 1);
+    var dashIdx = afterSlash.indexOf("-");
+    if (dashIdx === -1) {
+      // 沒有共同後段，單純把每個用 / 分隔的詞都當作關鍵字
+      return q.split("/").map(function (s) { return s.trim(); }).filter(Boolean);
+    }
+    var firstPrefix = q.slice(0, slashIdx);
+    var secondPrefix = afterSlash.slice(0, dashIdx);
+    var suffix = afterSlash.slice(dashIdx); // 包含開頭的 "-"
+    return [firstPrefix + suffix, secondPrefix + suffix];
+  }
+
   var filtered = useMemo(function () {
+    var terms = expandSearchTerms(search);
     return data.filter(function (item) {
-      var q = search.trim().toLowerCase();
-      var matchSearch = !q || item.model.toLowerCase().indexOf(q) !== -1;
+      var modelLower = item.model.toLowerCase();
+      var matchSearch = terms.length === 0 || terms.some(function (t) { return modelLower.indexOf(t) !== -1; });
       var matchCat = categoryFilter === "全部" || item.category === categoryFilter;
       return matchSearch && matchCat;
     });
