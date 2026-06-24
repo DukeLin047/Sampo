@@ -67,8 +67,8 @@ var PREFIX_RULES = [
   { prefixes: ["EM", "QM"], category: "電視" },
   { prefixes: ["SR"],       category: "冰箱" },
   { prefixes: ["ES"],       category: "洗衣機" },
-  { prefixes: ["AU"],       category: "冷氣室外機" },
-  { prefixes: ["AM"],       category: "冷氣室內機" }
+  { prefixes: ["AU"],       category: "冷氣" },
+  { prefixes: ["AM"],       category: "冷氣" }
 ];
 
 function getCategory(model) {
@@ -82,25 +82,45 @@ function getCategory(model) {
   return null;
 }
 
-var CATEGORY_LIST = ["電視", "冰箱", "洗衣機", "冷氣室外機", "冷氣室內機"];
+// 取得型號去掉 AU-/AM- 前綴後的後段，用於配對內外機 (例如 "AU-HF22D" -> "HF22D")
+function getModelSuffix(model) {
+  var m = String(model).toUpperCase();
+  if (m.indexOf("AU") === 0 || m.indexOf("AM") === 0) {
+    return m.replace(/^A[UM]-?/, "");
+  }
+  return null;
+}
+
+var CATEGORY_LIST = ["電視", "冰箱", "洗衣機", "冷氣"];
 
 var CATEGORY_COLORS = {
-  "電視":      { bg: "#F3E5F5", text: "#6A1B9A", dot: "#9C27B0" },
-  "冰箱":      { bg: "#E8F5E9", text: "#2E7D32", dot: "#4CAF50" },
-  "洗衣機":    { bg: "#FFF3E0", text: "#E65100", dot: "#FF9800" },
-  "冷氣室外機": { bg: "#E8F4FD", text: "#1A6B9A", dot: "#2196F3" },
-  "冷氣室內機": { bg: "#E0F7FA", text: "#00695C", dot: "#00BCD4" }
+  "電視":   { bg: "#F3E5F5", text: "#6A1B9A", dot: "#9C27B0" },
+  "冰箱":   { bg: "#E8F5E9", text: "#2E7D32", dot: "#4CAF50" },
+  "洗衣機": { bg: "#FFF3E0", text: "#E65100", dot: "#FF9800" },
+  "冷氣":   { bg: "#E8F4FD", text: "#1A6B9A", dot: "#2196F3" }
 };
 
 var DEFAULT_THRESHOLD = {
-  "電視": 10, "冰箱": 10, "洗衣機": 10, "冷氣室外機": 5, "冷氣室內機": 5
+  "電視": 10, "冰箱": 10, "洗衣機": 10, "冷氣": 5
 };
 
 // ── 小元件 ────────────────────────────────────────────────────
+function StockNumber(props) {
+  var label = props.label;
+  var value = props.value;
+  var hasStock = value > 0;
+  return h("div", { style: { display: "flex", alignItems: "center", gap: 4 } },
+    label ? h("span", { style: { fontSize: 11, color: "#AAAAAA" } }, label) : null,
+    h("span", {
+      style: { fontSize: 18, fontWeight: 800, color: hasStock ? "#2E7D32" : "#C62828" }
+    }, value)
+  );
+}
+
 function ProductRow(props) {
   var item = props.item;
   var cat = CATEGORY_COLORS[item.category] || { dot: "#999" };
-  var hasStock = item.stock > 0;
+  var isPair = item.indoor !== undefined || item.outdoor !== undefined;
   return h("div", {
     style: {
       display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -111,9 +131,14 @@ function ProductRow(props) {
       h("span", { style: { width: 8, height: 8, borderRadius: "50%", background: cat.dot, flexShrink: 0 } }),
       h("span", { style: { fontSize: 14, fontWeight: 600, color: "#1A1A2E", wordBreak: "break-all" } }, item.model)
     ),
-    h("span", {
-      style: { fontSize: 18, fontWeight: 800, marginLeft: 12, flexShrink: 0, color: hasStock ? "#2E7D32" : "#C62828" }
-    }, item.stock)
+    isPair
+      ? h("div", { style: { display: "flex", gap: 14, marginLeft: 12, flexShrink: 0 } },
+          h(StockNumber, { label: "內機", value: item.indoor || 0 }),
+          h(StockNumber, { label: "外機", value: item.outdoor || 0 })
+        )
+      : h("span", {
+          style: { fontSize: 18, fontWeight: 800, marginLeft: 12, flexShrink: 0, color: item.stock > 0 ? "#2E7D32" : "#C62828" }
+        }, item.stock)
   );
 }
 
@@ -220,13 +245,52 @@ function InventoryApp() {
           var qty = Number(row["未限制"] != null ? row["未限制"] : 0) || 0;
 
           if (!matched[model]) {
-            matched[model] = { model: model, category: category, stock: 0, threshold: DEFAULT_THRESHOLD[category] || 5 };
+            matched[model] = { model: model, category: category, stock: 0 };
           }
           matched[model].stock += qty;
         }
 
-        var items = Object.keys(matched).map(function (k) { return matched[k]; });
-        items.sort(function (a, b) {
+        // 將冷氣的 AU(室外機)/AM(室內機) 依後段型號配對成一筆
+        var coolingPairs = {};
+        var finalItems = [];
+
+        Object.keys(matched).forEach(function (k) {
+          var rec = matched[k];
+          if (rec.category !== "冷氣") {
+            finalItems.push({ model: rec.model, category: rec.category, stock: rec.stock, threshold: DEFAULT_THRESHOLD[rec.category] || 5 });
+            return;
+          }
+          var suffix = getModelSuffix(rec.model);
+          var mUpper = rec.model.toUpperCase();
+          var isOutdoor = mUpper.indexOf("AU") === 0;
+          var isIndoor = mUpper.indexOf("AM") === 0;
+
+          if (!coolingPairs[suffix]) {
+            coolingPairs[suffix] = { suffix: suffix, indoor: 0, outdoor: 0, indoorModel: null, outdoorModel: null };
+          }
+          if (isOutdoor) {
+            coolingPairs[suffix].outdoor += rec.stock;
+            coolingPairs[suffix].outdoorModel = rec.model;
+          } else if (isIndoor) {
+            coolingPairs[suffix].indoor += rec.stock;
+            coolingPairs[suffix].indoorModel = rec.model;
+          }
+        });
+
+        Object.keys(coolingPairs).forEach(function (suffix) {
+          var pair = coolingPairs[suffix];
+          var displayModel = "AU/AM-" + suffix;
+          finalItems.push({
+            model: displayModel,
+            category: "冷氣",
+            indoor: pair.indoor,
+            outdoor: pair.outdoor,
+            stock: pair.indoor + pair.outdoor,
+            threshold: DEFAULT_THRESHOLD["冷氣"] || 5
+          });
+        });
+
+        var items = finalItems.sort(function (a, b) {
           if (a.category === b.category) return a.model.localeCompare(b.model);
           return a.category.localeCompare(b.category);
         });
