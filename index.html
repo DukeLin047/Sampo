@@ -303,6 +303,58 @@ function AdjustPanel(props) {
 }
 
 
+function AdjustedList(props) {
+  var data = props.data;
+  var onApply = props.onApply;
+  var busyState = useState(null);
+  var busy = busyState[0], setBusy = busyState[1];
+
+  var adjusted = data.filter(function (it) { return it.adjustment && it.adjustment !== 0; });
+
+  function clearAdjust(model) {
+    setBusy(model);
+    onApply(model, 0, "set").then(function () {
+      setBusy(null);
+    }).catch(function () {
+      setBusy(null);
+    });
+  }
+
+  return h("div", { style: { background: "#fff", borderRadius: 14, padding: 20, boxShadow: "0 1px 6px rgba(0,0,0,0.07)" } },
+    h("div", { style: { fontWeight: 700, fontSize: 14, color: "#333", marginBottom: 4 } }, "📝 已手動調整的型號"),
+    h("div", { style: { fontSize: 11, color: "#888", marginBottom: 14 } }, "顯示「原始庫存 + 調整量 = 最終庫存」，可隨時清除調整"),
+    adjusted.length === 0
+      ? h("div", { style: { textAlign: "center", padding: "20px", color: "#AAAAAA", fontSize: 13 } }, "目前沒有任何手動調整")
+      : h("div", { style: { display: "flex", flexDirection: "column", gap: 10 } },
+          adjusted.map(function (it) {
+            var base = it.baseStock !== undefined ? it.baseStock : it.stock;
+            var adj = it.adjustment || 0;
+            return h("div", {
+              key: it.model,
+              style: { padding: "12px 14px", background: "#F8F9FF", borderRadius: 10, border: "1px solid #E8EAF6" }
+            },
+              h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 } },
+                h("span", { style: { fontSize: 13, fontWeight: 700, color: "#1A237E" } }, it.model),
+                h("button", {
+                  onClick: function () { clearAdjust(it.model); },
+                  disabled: busy === it.model,
+                  style: {
+                    fontSize: 11, color: "#C62828", border: "1px solid #FFCDD2", background: "#fff",
+                    borderRadius: 6, padding: "3px 10px", cursor: "pointer", fontFamily: "inherit"
+                  }
+                }, busy === it.model ? "清除中…" : "清除調整")
+              ),
+              h("div", { style: { fontSize: 13, color: "#555", fontFamily: "monospace" } },
+                "原始 " + base + "  " + (adj > 0 ? "+ " + adj : "- " + Math.abs(adj)) + "  =  ",
+                h("span", { style: { fontWeight: 800, color: "#2E7D32" } }, it.stock)
+              )
+            );
+          })
+        )
+  );
+}
+
+
 function InventoryApp() {
   var dataState = useState([]);
   var data = dataState[0], setData = dataState[1];
@@ -447,8 +499,9 @@ function InventoryApp() {
           var qty = Number(row["未限制"] != null ? row["未限制"] : 0) || 0;
 
           if (!matched[model]) {
-            matched[model] = { model: model, category: category, stock: 0, threshold: DEFAULT_THRESHOLD[category] || 5 };
+            matched[model] = { model: model, category: category, baseStock: 0, adjustment: 0, stock: 0, threshold: DEFAULT_THRESHOLD[category] || 5 };
           }
+          matched[model].baseStock += qty;
           matched[model].stock += qty;
         }
 
@@ -484,7 +537,7 @@ function InventoryApp() {
     e.target.value = "";
   }
 
-  function handleAdjust(model, delta) {
+  function handleAdjust(model, delta, mode) {
     return DOC_REF.get().then(function (doc) {
       var payload = doc.exists ? doc.data() : { items: [] };
       var items = payload.items || [];
@@ -495,7 +548,17 @@ function InventoryApp() {
       if (!found) {
         throw new Error("找不到型號");
       }
-      found.stock = (found.stock || 0) + delta;
+      // 相容舊資料：若沒有 baseStock，視 stock 為原始庫存
+      if (found.baseStock === undefined) {
+        found.baseStock = found.stock || 0;
+        found.adjustment = 0;
+      }
+      if (mode === "set") {
+        found.adjustment = delta;
+      } else {
+        found.adjustment = (found.adjustment || 0) + delta;
+      }
+      found.stock = found.baseStock + found.adjustment;
       if (found.stock < 0) found.stock = 0;
 
       var now = new Date().toLocaleString("zh-TW", { hour12: false });
@@ -691,6 +754,7 @@ function InventoryApp() {
         }, uploadMsg) : null
       ),
       h(AdjustPanel, { data: data, onApply: handleAdjust }),
+      h(AdjustedList, { data: data, onApply: handleAdjust }),
       h("div", { style: { background: "#fff", borderRadius: 14, padding: 20, boxShadow: "0 1px 6px rgba(0,0,0,0.07)" } },
         h("div", { style: { fontWeight: 700, fontSize: 14, color: "#333", marginBottom: 12 } }, "📋 自動分類規則"),
         h("div", { style: { display: "flex", flexDirection: "column", gap: 8 } }, ruleRows),
