@@ -362,6 +362,293 @@ function AdjustedList(props) {
 }
 
 
+// ============ 經銷商系統元件 ============
+
+// 經銷商登入身分判斷：回傳 {role, code} 或 null
+function resolveDealerIdentity(account) {
+  var acc = String(account).trim().toUpperCase();
+  // 區域主管：A42 或 A42B~E
+  if (acc === "A42") return { role: "hq", code: "A42", label: "台中分公司二課" };
+  if (DEALER_AREAS[acc]) return { role: "area", code: acc, label: acc + " 區（業務:" + DEALER_AREAS[acc].sales + "）" };
+  // 經銷商：完整代號比對（大小寫不敏感）
+  for (var i = 0; i < DEALER_LIST.length; i++) {
+    if (DEALER_LIST[i].code.toUpperCase() === acc) {
+      return { role: "dealer", code: DEALER_LIST[i].code, label: DEALER_LIST[i].code + " " + DEALER_LIST[i].name, area: DEALER_LIST[i].area };
+    }
+  }
+  return null;
+}
+
+var DEALER_PASSWORD = "sampo1313";
+
+// 經銷商系統登入表單
+function DealerLogin(props) {
+  var onLogin = props.onLogin;
+  var accState = useState("");
+  var acc = accState[0], setAcc = accState[1];
+  var pwState = useState("");
+  var pw = pwState[0], setPw = pwState[1];
+  var errState = useState("");
+  var err = errState[0], setErr = errState[1];
+
+  function doLogin() {
+    var id = resolveDealerIdentity(acc);
+    if (!id) { setErr("查無此帳號，請確認經銷商代號或區域代號"); return; }
+    if (pw !== DEALER_PASSWORD) { setErr("密碼錯誤"); return; }
+    setErr("");
+    onLogin(id);
+  }
+
+  return h("div", { style: { background: "#fff", borderRadius: 14, padding: 24, boxShadow: "0 1px 6px rgba(0,0,0,0.07)" } },
+    h("div", { style: { fontWeight: 800, fontSize: 16, color: "#1A237E", marginBottom: 4 } }, "🏪 經銷商店庫登入"),
+    h("div", { style: { fontSize: 12, color: "#888", marginBottom: 16, lineHeight: 1.6 } }, "輸入您的經銷商代號（例如 L0303-4503）。區域主管請輸入區域代號（A42B~E）。"),
+    h("input", {
+      value: acc, onChange: function (e) { setAcc(e.target.value); },
+      placeholder: "經銷商代號 / 區域代號",
+      style: { width: "100%", boxSizing: "border-box", padding: "11px 12px", marginBottom: 10, borderRadius: 10, border: "1.5px solid #E0E0E0", fontSize: 14, outline: "none", fontFamily: "inherit" }
+    }),
+    h("input", {
+      type: "password", value: pw, onChange: function (e) { setPw(e.target.value); },
+      placeholder: "密碼", onKeyDown: function (e) { if (e.key === "Enter") doLogin(); },
+      style: { width: "100%", boxSizing: "border-box", padding: "11px 12px", marginBottom: 14, borderRadius: 10, border: "1.5px solid #E0E0E0", fontSize: 14, outline: "none", fontFamily: "inherit" }
+    }),
+    err ? h("div", { style: { color: "#C62828", fontSize: 12, marginBottom: 10 } }, err) : null,
+    h("button", {
+      onClick: doLogin,
+      style: { width: "100%", padding: "12px", borderRadius: 10, border: "none", background: "#1A237E", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }
+    }, "登入")
+  );
+}
+
+// 經銷商填庫存介面
+function DealerStockForm(props) {
+  var identity = props.identity;  // {role:'dealer', code, label, area}
+  var stockState = useState(null);  // {model: qty}
+  var stock = stockState[0], setStock = stockState[1];
+  var loadingState = useState(true);
+  var loading = loadingState[0], setLoading = loadingState[1];
+  var savingState = useState(false);
+  var saving = savingState[0], setSaving = savingState[1];
+  var msgState = useState("");
+  var msg = msgState[0], setMsg = msgState[1];
+  var openCatState = useState(null);
+  var openCat = openCatState[0], setOpenCat = openCatState[1];
+
+  useEffect(function () {
+    DEALER_STOCK_COL.doc(identity.code).get().then(function (doc) {
+      var data = doc.exists ? (doc.data().stock || {}) : {};
+      setStock(data);
+      setLoading(false);
+    }).catch(function () {
+      setStock({});
+      setLoading(false);
+    });
+  }, [identity.code]);
+
+  function setQty(model, val) {
+    var n = val === "" ? "" : Math.max(0, parseInt(val, 10) || 0);
+    var next = Object.assign({}, stock);
+    next[model] = n;
+    setStock(next);
+  }
+
+  function saveAll() {
+    setSaving(true);
+    setMsg("");
+    var clean = {};
+    Object.keys(stock).forEach(function (k) {
+      clean[k] = stock[k] === "" ? 0 : stock[k];
+    });
+    var now = new Date().toLocaleString("zh-TW", { hour12: false });
+    DEALER_STOCK_COL.doc(identity.code).set({
+      code: identity.code, area: identity.area || "", stock: clean, updatedAt: now
+    }).then(function () {
+      setSaving(false);
+      setMsg("✅ 已儲存店面庫存（" + now + "）");
+    }).catch(function () {
+      setSaving(false);
+      setMsg("❌ 儲存失敗，請稍後再試");
+    });
+  }
+
+  if (loading) return h("div", { style: { textAlign: "center", padding: "40px", color: "#AAA" } }, "載入中…");
+
+  var cats = Object.keys(DEALER_PRODUCTS);
+  var catBlocks = cats.map(function (cat) {
+    var models = DEALER_PRODUCTS[cat];
+    var isOpen = openCat === cat;
+    var filledCount = models.filter(function (m) { return stock[m] && stock[m] > 0; }).length;
+    return h("div", { key: cat, style: { background: "#fff", borderRadius: 12, marginBottom: 10, overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" } },
+      h("div", {
+        onClick: function () { setOpenCat(isOpen ? null : cat); },
+        style: { padding: "14px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", background: isOpen ? "#F8F9FF" : "#fff" }
+      },
+        h("span", { style: { fontWeight: 700, fontSize: 15, color: "#1A237E" } }, cat + "（" + models.length + "）"),
+        h("span", { style: { fontSize: 12, color: "#888" } }, "已填 " + filledCount + " 　" + (isOpen ? "▲" : "▼"))
+      ),
+      isOpen ? h("div", { style: { borderTop: "1px solid #F0F0F0" } },
+        models.map(function (m) {
+          return h("div", { key: m, style: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 16px", borderBottom: "1px solid #F5F5F5" } },
+            h("span", { style: { fontSize: 13, color: "#333", flex: 1, wordBreak: "break-all" } }, m),
+            h("input", {
+              type: "number", min: "0",
+              value: stock[m] === undefined ? "" : stock[m],
+              onChange: function (e) { setQty(m, e.target.value); },
+              placeholder: "0",
+              style: { width: 70, textAlign: "center", padding: "7px 8px", borderRadius: 8, border: "1.5px solid #E0E0E0", fontSize: 14, outline: "none", fontFamily: "inherit" }
+            })
+          );
+        })
+      ) : null
+    );
+  });
+
+  return h("div", null,
+    h("div", { style: { background: "#fff", borderRadius: 12, padding: "12px 16px", marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" } },
+      h("div", null,
+        h("div", { style: { fontSize: 11, color: "#888" } }, "目前登入店面"),
+        h("div", { style: { fontSize: 14, fontWeight: 700, color: "#1A237E" } }, identity.label)
+      ),
+      h("button", {
+        onClick: props.onLogout,
+        style: { padding: "6px 14px", borderRadius: 8, border: "1.5px solid #E0E0E0", background: "#fff", color: "#C62828", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }
+      }, "登出")
+    ),
+    h("div", { style: { fontSize: 12, color: "#888", marginBottom: 12, lineHeight: 1.6, padding: "0 4px" } }, "點各分類展開後填入店面庫存數量，填好後按底部「儲存」。未填的型號預設為 0。"),
+    catBlocks,
+    msg ? h("div", { style: { padding: "10px 14px", borderRadius: 8, marginBottom: 10, fontSize: 13, fontWeight: 600, background: msg.indexOf("✅") === 0 ? "#E8F5E9" : "#FFEBEE", color: msg.indexOf("✅") === 0 ? "#2E7D32" : "#C62828" } }, msg) : null,
+    h("button", {
+      onClick: saveAll, disabled: saving,
+      style: { width: "100%", padding: "14px", borderRadius: 10, border: "none", background: "#1A237E", color: "#fff", fontWeight: 700, fontSize: 15, cursor: saving ? "not-allowed" : "pointer", fontFamily: "inherit", marginBottom: 30 }
+    }, saving ? "儲存中…" : "💾 儲存店面庫存")
+  );
+}
+
+// 區域主管 / 管理者彙整檢視
+function DealerAreaView(props) {
+  var identity = props.identity;  // {role:'area'|'hq', code}
+  var allStockState = useState(null);  // {code: {stock, updatedAt}}
+  var allStock = allStockState[0], setAllStock = allStockState[1];
+  var loadingState = useState(true);
+  var loading = loadingState[0], setLoading = loadingState[1];
+  var selectedState = useState(null);  // 選中要看哪家經銷商
+  var selected = selectedState[0], setSelected = selectedState[1];
+
+  useEffect(function () {
+    DEALER_STOCK_COL.get().then(function (snap) {
+      var map = {};
+      snap.forEach(function (doc) { map[doc.id] = doc.data(); });
+      setAllStock(map);
+      setLoading(false);
+    }).catch(function () {
+      setAllStock({});
+      setLoading(false);
+    });
+  }, []);
+
+  // 決定這個身分能看哪些經銷商
+  var visibleDealers = DEALER_LIST.filter(function (d) {
+    if (identity.role === "hq") return true;        // A42 看全部
+    if (identity.role === "area") return d.area === identity.code;  // 區域看自己區
+    return false;
+  });
+
+  if (loading) return h("div", { style: { textAlign: "center", padding: "40px", color: "#AAA" } }, "載入中…");
+
+  // 若選了某家經銷商，顯示其庫存明細
+  if (selected) {
+    var rec = allStock[selected.code];
+    var stockData = rec ? (rec.stock || {}) : {};
+    var cats = Object.keys(DEALER_PRODUCTS);
+    return h("div", null,
+      h("button", {
+        onClick: function () { setSelected(null); },
+        style: { marginBottom: 12, padding: "8px 14px", borderRadius: 8, border: "1.5px solid #E0E0E0", background: "#fff", color: "#1A237E", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }
+      }, "← 返回列表"),
+      h("div", { style: { background: "#fff", borderRadius: 12, padding: "14px 16px", marginBottom: 12, boxShadow: "0 1px 4px rgba(0,0,0,0.06)" } },
+        h("div", { style: { fontSize: 15, fontWeight: 800, color: "#1A237E" } }, selected.code + " " + selected.name),
+        rec && rec.updatedAt ? h("div", { style: { fontSize: 11, color: "#888", marginTop: 2 } }, "最後更新：" + rec.updatedAt) : h("div", { style: { fontSize: 11, color: "#C62828", marginTop: 2 } }, "尚未填寫庫存")
+      ),
+      cats.map(function (cat) {
+        var models = DEALER_PRODUCTS[cat];
+        var withStock = models.filter(function (m) { return stockData[m] && stockData[m] > 0; });
+        if (withStock.length === 0) return null;
+        return h("div", { key: cat, style: { background: "#fff", borderRadius: 12, marginBottom: 10, overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" } },
+          h("div", { style: { padding: "10px 16px", fontWeight: 700, fontSize: 14, color: "#1A237E", background: "#F8F9FF" } }, cat + "（" + withStock.length + " 項有庫存）"),
+          withStock.map(function (m) {
+            return h("div", { key: m, style: { display: "flex", justifyContent: "space-between", padding: "8px 16px", borderBottom: "1px solid #F5F5F5", fontSize: 13 } },
+              h("span", null, m),
+              h("span", { style: { fontWeight: 800, color: "#2E7D32" } }, stockData[m])
+            );
+          })
+        );
+      })
+    );
+  }
+
+  // 經銷商列表（依區域分組）
+  var areaGroups = {};
+  visibleDealers.forEach(function (d) {
+    if (!areaGroups[d.area]) areaGroups[d.area] = [];
+    areaGroups[d.area].push(d);
+  });
+
+  return h("div", null,
+    h("div", { style: { background: "#fff", borderRadius: 12, padding: "12px 16px", marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" } },
+      h("div", null,
+        h("div", { style: { fontSize: 11, color: "#888" } }, identity.role === "hq" ? "總管理（台中分公司二課）" : "區域主管"),
+        h("div", { style: { fontSize: 14, fontWeight: 700, color: "#1A237E" } }, identity.label)
+      ),
+      h("button", {
+        onClick: props.onLogout,
+        style: { padding: "6px 14px", borderRadius: 8, border: "1.5px solid #E0E0E0", background: "#fff", color: "#C62828", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }
+      }, "登出")
+    ),
+    Object.keys(areaGroups).map(function (area) {
+      var dealers = areaGroups[area];
+      var meta = DEALER_AREAS[area];
+      return h("div", { key: area, style: { marginBottom: 16 } },
+        h("div", { style: { fontSize: 13, fontWeight: 700, color: "#666", padding: "4px 4px 8px" } },
+          area + " 區" + (meta ? "（業務:" + meta.sales + "）" : "") + " · " + dealers.length + " 家"),
+        h("div", { style: { borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" } },
+          dealers.map(function (d) {
+            var rec = allStock[d.code];
+            var filled = rec && rec.stock ? Object.keys(rec.stock).filter(function (k) { return rec.stock[k] > 0; }).length : 0;
+            return h("div", {
+              key: d.code,
+              onClick: function () { setSelected(d); },
+              style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "11px 14px", background: "#fff", borderBottom: "1px solid #F0F0F0", cursor: "pointer" }
+            },
+              h("div", { style: { minWidth: 0, flex: 1 } },
+                h("div", { style: { fontSize: 13, fontWeight: 600, color: "#1A1A2E" } }, d.code + " " + d.name),
+                h("div", { style: { fontSize: 11, color: rec ? "#2E7D32" : "#C62828", marginTop: 1 } }, rec ? ("已填 " + filled + " 項 · " + (rec.updatedAt || "")) : "尚未填寫")
+              ),
+              h("span", { style: { fontSize: 16, color: "#CCC", marginLeft: 8 } }, "›")
+            );
+          })
+        )
+      );
+    })
+  );
+}
+
+// 經銷商系統主容器
+function DealerSystem() {
+  var identityState = useState(null);
+  var identity = identityState[0], setIdentity = identityState[1];
+
+  if (!identity) {
+    return h(DealerLogin, { onLogin: function (id) { setIdentity(id); } });
+  }
+  var logout = function () { setIdentity(null); };
+  if (identity.role === "dealer") {
+    return h(DealerStockForm, { identity: identity, onLogout: logout });
+  }
+  // area 或 hq
+  return h(DealerAreaView, { identity: identity, onLogout: logout });
+}
+
+
 function InventoryApp() {
   var dataState = useState([]);
   var data = dataState[0], setData = dataState[1];
@@ -606,12 +893,12 @@ function InventoryApp() {
       )
     ),
     h("div", { style: { display: "flex", gap: 4, marginTop: 16 } },
-      ["查詢", "管理"].map(function (t) {
+      ["查詢", "管理", "經銷商"].map(function (t) {
         return h("button", {
           key: t,
           onClick: function () { setTab(t); },
           style: {
-            padding: "8px 20px", borderRadius: "8px 8px 0 0", border: "none", cursor: "pointer",
+            padding: "8px 16px", borderRadius: "8px 8px 0 0", border: "none", cursor: "pointer",
             fontWeight: 700, fontSize: 13,
             background: tab === t ? "#F2F4F8" : "transparent",
             color: tab === t ? "#1A237E" : "rgba(255,255,255,0.7)",
@@ -777,10 +1064,21 @@ function InventoryApp() {
     );
   }
 
+  // ── 經銷商分頁內容 ──
+  var dealerContent = null;
+  if (tab === "經銷商") {
+    dealerContent = h(DealerSystem);
+  }
+
+  var bodyContent;
+  if (tab === "查詢") bodyContent = queryContent;
+  else if (tab === "管理") bodyContent = manageContent;
+  else bodyContent = dealerContent;
+
   return h("div", { style: { minHeight: "100vh", background: "#F2F4F8", maxWidth: 480, margin: "0 auto" } },
     header,
     h("div", { style: { padding: "16px 16px 40px" } },
-      loading ? h("div", { style: { textAlign: "center", padding: "60px 20px", color: "#AAAAAA" } }, "載入中…") : (tab === "查詢" ? queryContent : manageContent)
+      (loading && tab !== "經銷商") ? h("div", { style: { textAlign: "center", padding: "60px 20px", color: "#AAAAAA" } }, "載入中…") : bodyContent
     )
   );
 }
