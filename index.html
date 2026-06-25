@@ -893,18 +893,18 @@ function InventoryApp() {
       )
     ),
     h("div", { style: { display: "flex", gap: 4, marginTop: 16 } },
-      ["查詢", "管理", "經銷商"].map(function (t) {
+      [{ key: "查詢", label: "公司貨源查詢" }, { key: "經銷商", label: "經銷商店庫資料表" }, { key: "管理", label: "管理" }].map(function (t) {
         return h("button", {
-          key: t,
-          onClick: function () { setTab(t); },
+          key: t.key,
+          onClick: function () { setTab(t.key); },
           style: {
-            padding: "8px 16px", borderRadius: "8px 8px 0 0", border: "none", cursor: "pointer",
-            fontWeight: 700, fontSize: 13,
-            background: tab === t ? "#F2F4F8" : "transparent",
-            color: tab === t ? "#1A237E" : "rgba(255,255,255,0.7)",
+            padding: "8px 12px", borderRadius: "8px 8px 0 0", border: "none", cursor: "pointer",
+            fontWeight: 700, fontSize: 12,
+            background: tab === t.key ? "#F2F4F8" : "transparent",
+            color: tab === t.key ? "#1A237E" : "rgba(255,255,255,0.7)",
             transition: "all 0.2s"
           }
-        }, t);
+        }, t.label);
       })
     )
   );
