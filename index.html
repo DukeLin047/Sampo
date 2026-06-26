@@ -504,16 +504,20 @@ function DealerStockForm(props) {
   });
 
   return h("div", null,
-    h("div", { style: { background: "#fff", borderRadius: 12, padding: "12px 16px", marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" } },
-      h("div", null,
-        h("div", { style: { fontSize: 11, color: "#888" } }, "目前登入店面"),
-        h("div", { style: { fontSize: 14, fontWeight: 700, color: "#1A237E" } }, identity.label)
-      ),
-      h("button", {
-        onClick: props.onLogout,
-        style: { padding: "6px 14px", borderRadius: 8, border: "1.5px solid #E0E0E0", background: "#fff", color: "#C62828", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }
-      }, "登出")
-    ),
+    props.hideHeader
+      ? h("div", { style: { background: "#fff", borderRadius: 12, padding: "14px 16px", marginBottom: 12, boxShadow: "0 1px 4px rgba(0,0,0,0.06)" } },
+          h("div", { style: { fontSize: 15, fontWeight: 800, color: "#1A237E" } }, identity.label)
+        )
+      : h("div", { style: { background: "#fff", borderRadius: 12, padding: "12px 16px", marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" } },
+          h("div", null,
+            h("div", { style: { fontSize: 11, color: "#888" } }, "目前登入店面"),
+            h("div", { style: { fontSize: 14, fontWeight: 700, color: "#1A237E" } }, identity.label)
+          ),
+          h("button", {
+            onClick: props.onLogout,
+            style: { padding: "6px 14px", borderRadius: 8, border: "1.5px solid #E0E0E0", background: "#fff", color: "#C62828", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }
+          }, "登出")
+        ),
     h("div", { style: { fontSize: 12, color: "#888", marginBottom: 12, lineHeight: 1.6, padding: "0 4px" } }, "點各分類展開後填入店面庫存數量，填好後按底部「儲存」。未填的型號預設為 0。"),
     catBlocks,
     msg ? h("div", { style: { padding: "10px 14px", borderRadius: 8, marginBottom: 10, fontSize: 13, fontWeight: 600, background: msg.indexOf("✅") === 0 ? "#E8F5E9" : "#FFEBEE", color: msg.indexOf("✅") === 0 ? "#2E7D32" : "#C62828" } }, msg) : null,
@@ -555,34 +559,20 @@ function DealerAreaView(props) {
 
   if (loading) return h("div", { style: { textAlign: "center", padding: "40px", color: "#AAA" } }, "載入中…");
 
-  // 若選了某家經銷商，顯示其庫存明細
+  // 若選了某家經銷商，顯示可編輯的填庫存介面（區域主管/總部可代為調整）
   if (selected) {
-    var rec = allStock[selected.code];
-    var stockData = rec ? (rec.stock || {}) : {};
-    var cats = Object.keys(DEALER_PRODUCTS);
+    var dealerIdentity = {
+      role: "dealer",
+      code: selected.code,
+      label: selected.code + " " + selected.name + "（由" + (identity.role === "hq" ? "總管理" : identity.code + "區") + "代為調整）",
+      area: selected.area
+    };
     return h("div", null,
       h("button", {
         onClick: function () { setSelected(null); },
         style: { marginBottom: 12, padding: "8px 14px", borderRadius: 8, border: "1.5px solid #E0E0E0", background: "#fff", color: "#1A237E", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }
       }, "← 返回列表"),
-      h("div", { style: { background: "#fff", borderRadius: 12, padding: "14px 16px", marginBottom: 12, boxShadow: "0 1px 4px rgba(0,0,0,0.06)" } },
-        h("div", { style: { fontSize: 15, fontWeight: 800, color: "#1A237E" } }, selected.code + " " + selected.name),
-        rec && rec.updatedAt ? h("div", { style: { fontSize: 11, color: "#888", marginTop: 2 } }, "最後更新：" + rec.updatedAt) : h("div", { style: { fontSize: 11, color: "#C62828", marginTop: 2 } }, "尚未填寫庫存")
-      ),
-      cats.map(function (cat) {
-        var models = DEALER_PRODUCTS[cat];
-        var withStock = models.filter(function (m) { return stockData[m] && stockData[m] > 0; });
-        if (withStock.length === 0) return null;
-        return h("div", { key: cat, style: { background: "#fff", borderRadius: 12, marginBottom: 10, overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" } },
-          h("div", { style: { padding: "10px 16px", fontWeight: 700, fontSize: 14, color: "#1A237E", background: "#F8F9FF" } }, cat + "（" + withStock.length + " 項有庫存）"),
-          withStock.map(function (m) {
-            return h("div", { key: m, style: { display: "flex", justifyContent: "space-between", padding: "8px 16px", borderBottom: "1px solid #F5F5F5", fontSize: 13 } },
-              h("span", null, m),
-              h("span", { style: { fontWeight: 800, color: "#2E7D32" } }, stockData[m])
-            );
-          })
-        );
-      })
+      h(DealerStockForm, { identity: dealerIdentity, hideHeader: true })
     );
   }
 
