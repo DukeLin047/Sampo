@@ -790,7 +790,9 @@ function ConsignmentView(props) {
                     ),
                     it.moves.length ? h("div", { style: { padding: "0 16px 9px 16px", borderBottom: "1px solid #F5F5F5" } },
                       it.moves.map(function (mv, idx) {
-                        return h("span", { key: idx, style: { display: "inline-block", fontSize: 11, color: "#888", background: "#F5F5F5", borderRadius: 4, padding: "2px 6px", marginRight: 4, marginTop: 2 } }, mv.date + " (" + mv.qty + ")");
+                        var isOut = mv.type === "out";
+                        var label = (isOut ? "出 " : "入 ") + mv.date + " (" + mv.qty + ")" + (isOut && mv.who ? " 借:" + mv.who : "");
+                        return h("span", { key: idx, style: { display: "inline-block", fontSize: 11, borderRadius: 4, padding: "2px 6px", marginRight: 4, marginTop: 2, background: isOut ? "#FFEBEE" : "#E8F5E9", color: isOut ? "#C62828" : "#2E7D32" } }, label);
                       })
                     ) : null
                   );
@@ -977,7 +979,7 @@ function ConsignmentEditor(props) {
     var next = clone(months);
     var mObj = next.find(function (m) { return m.month === monthName; });
     var it = mObj.items.find(function (x) { return x.model === model; });
-    it.moves.push({ date: "", qty: "" });
+    it.moves.push({ date: "", qty: "", type: "in", who: "" });
     setMonths(next);
   }
 
@@ -1051,10 +1053,18 @@ function ConsignmentEditor(props) {
               ),
               h("div", { style: { fontSize: 11, color: "#888", marginBottom: 4 } }, "進出庫明細"),
               it.moves.map(function (mv, idx) {
-                return h("div", { key: idx, style: { display: "flex", gap: 6, marginBottom: 6, alignItems: "center" } },
-                  h("input", { type: "date", value: mv.date, onChange: function (e) { updateMove(m.month, it.model, idx, "date", e.target.value); }, style: Object.assign({}, inputS, { flex: 1 }) }),
-                  h("input", { value: mv.qty, onChange: function (e) { updateMove(m.month, it.model, idx, "qty", e.target.value); }, placeholder: "數量", style: Object.assign({}, inputS, { width: 70 }) }),
-                  h("button", { onClick: function () { delMove(m.month, it.model, idx); }, style: { fontSize: 14, color: "#C62828", border: "none", background: "none", cursor: "pointer" } }, "✕")
+                var isOut = mv.type === "out";
+                return h("div", { key: idx, style: { border: "1px solid #F0F0F0", borderRadius: 8, padding: "8px", marginBottom: 8 } },
+                  h("div", { style: { display: "flex", gap: 6, marginBottom: 6, alignItems: "center" } },
+                    h("button", {
+                      onClick: function () { updateMove(m.month, it.model, idx, "type", isOut ? "in" : "out"); },
+                      style: { padding: "6px 10px", borderRadius: 6, border: "none", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit", flexShrink: 0, background: isOut ? "#FFEBEE" : "#E8F5E9", color: isOut ? "#C62828" : "#2E7D32" }
+                    }, isOut ? "出庫" : "入庫"),
+                    h("input", { type: "date", value: mv.date, onChange: function (e) { updateMove(m.month, it.model, idx, "date", e.target.value); }, style: Object.assign({}, inputS, { flex: 1 }) }),
+                    h("input", { type: "number", value: mv.qty, onChange: function (e) { updateMove(m.month, it.model, idx, "qty", e.target.value); }, placeholder: "數量", style: Object.assign({}, inputS, { width: 60 }) }),
+                    h("button", { onClick: function () { delMove(m.month, it.model, idx); }, style: { fontSize: 14, color: "#C62828", border: "none", background: "none", cursor: "pointer", flexShrink: 0 } }, "✕")
+                  ),
+                  isOut ? h("input", { value: mv.who || "", onChange: function (e) { updateMove(m.month, it.model, idx, "who", e.target.value); }, placeholder: "借誰（出庫對象）", style: Object.assign({}, inputS, { width: "100%" }) }) : null
                 );
               }),
               h("button", { onClick: function () { addMove(m.month, it.model); }, style: { fontSize: 12, color: "#3949AB", border: "1px solid #C5CAE9", background: "#fff", borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontFamily: "inherit", marginTop: 2 } }, "＋ 加一筆進出庫")
