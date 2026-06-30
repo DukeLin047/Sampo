@@ -829,17 +829,185 @@ function DealerSystem() {
   return h(DealerAreaView, { identity: identity, onLogout: logout });
 }
 
+
+// 寄倉表網頁編輯器（管理者/區域主管可用）
+function ConsignmentEditor(props) {
+  var code = props.code;
+  var dealerName = props.dealerName || "";
+  var monthsState = useState(null);
+  var months = monthsState[0], setMonths = monthsState[1];
+  var loadingState = useState(true);
+  var loading = loadingState[0], setLoading = loadingState[1];
+  var savingState = useState(false);
+  var saving = savingState[0], setSaving = savingState[1];
+  var msgState = useState("");
+  var msg = msgState[0], setMsg = msgState[1];
+  var openMonthState = useState(null);
+  var openMonth = openMonthState[0], setOpenMonth = openMonthState[1];
+
+  useEffect(function () {
+    CONSIGN_COL.doc(code).get().then(function (doc) {
+      var m = doc.exists && doc.data().months ? doc.data().months : [];
+      setMonths(m);
+      if (m.length > 0) setOpenMonth(m[m.length - 1].month);
+      setLoading(false);
+    }).catch(function () { setMonths([]); setLoading(false); });
+  }, [code]);
+
+  function clone(x) { return JSON.parse(JSON.stringify(x)); }
+
+  function addMonth() {
+    var name = prompt("輸入月份（格式 YYYY-MM，例如 2026-07）");
+    if (!name) return;
+    name = name.trim();
+    if (months.some(function (m) { return m.month === name; })) { alert("該月份已存在"); return; }
+    var next = clone(months);
+    next.push({ month: name, items: [] });
+    next.sort(function (a, b) { return a.month.localeCompare(b.month); });
+    setMonths(next);
+    setOpenMonth(name);
+  }
+
+  function delMonth(monthName) {
+    if (!confirm("確定刪除 " + monthName + " 整個月份？")) return;
+    setMonths(months.filter(function (m) { return m.month !== monthName; }));
+  }
+
+  function addModel(monthName) {
+    var model = prompt("輸入機型名稱");
+    if (!model) return;
+    model = model.trim();
+    var next = clone(months);
+    var mObj = next.find(function (m) { return m.month === monthName; });
+    if (mObj.items.some(function (it) { return it.model === model; })) { alert("該機型已存在"); return; }
+    mObj.items.push({ model: model, base: 0, final: 0, moves: [] });
+    setMonths(next);
+  }
+
+  function delModel(monthName, model) {
+    var next = clone(months);
+    var mObj = next.find(function (m) { return m.month === monthName; });
+    mObj.items = mObj.items.filter(function (it) { return it.model !== model; });
+    setMonths(next);
+  }
+
+  function updateField(monthName, model, field, val) {
+    var next = clone(months);
+    var mObj = next.find(function (m) { return m.month === monthName; });
+    var it = mObj.items.find(function (x) { return x.model === model; });
+    if (field === "base" || field === "final") {
+      it[field] = val === "" ? 0 : (parseInt(val, 10) || 0);
+    }
+    setMonths(next);
+  }
+
+  function addMove(monthName, model) {
+    var next = clone(months);
+    var mObj = next.find(function (m) { return m.month === monthName; });
+    var it = mObj.items.find(function (x) { return x.model === model; });
+    it.moves.push({ date: "", qty: "" });
+    setMonths(next);
+  }
+
+  function updateMove(monthName, model, idx, field, val) {
+    var next = clone(months);
+    var mObj = next.find(function (m) { return m.month === monthName; });
+    var it = mObj.items.find(function (x) { return x.model === model; });
+    it.moves[idx][field] = val;
+    setMonths(next);
+  }
+
+  function delMove(monthName, model, idx) {
+    var next = clone(months);
+    var mObj = next.find(function (m) { return m.month === monthName; });
+    var it = mObj.items.find(function (x) { return x.model === model; });
+    it.moves.splice(idx, 1);
+    setMonths(next);
+  }
+
+  function saveAll() {
+    setSaving(true); setMsg("");
+    var now = new Date().toLocaleString("zh-TW", { hour12: false });
+    CONSIGN_COL.doc(code).set({ code: code, name: dealerName, months: months, updatedAt: now }).then(function () {
+      setSaving(false); setMsg("✅ 已儲存（" + now + "）");
+    }).catch(function () { setSaving(false); setMsg("❌ 儲存失敗"); });
+  }
+
+  if (loading) return h("div", { style: { textAlign: "center", padding: "40px", color: "#AAA" } }, "載入中…");
+
+  var inputS = { padding: "6px 8px", borderRadius: 6, border: "1.5px solid #E0E0E0", fontSize: 13, outline: "none", fontFamily: "inherit", boxSizing: "border-box" };
+
+  return h("div", null,
+    h("button", {
+      onClick: addMonth,
+      style: { width: "100%", padding: "12px", borderRadius: 10, border: "2px dashed #3949AB", background: "#EEF0FB", color: "#3949AB", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit", marginBottom: 12 }
+    }, "＋ 新增月份"),
+
+    months.length === 0 ? h("div", { style: { textAlign: "center", padding: "30px", color: "#AAA", fontSize: 13 } }, "尚無月份，請先新增") : null,
+
+    months.map(function (m) {
+      var isOpen = openMonth === m.month;
+      return h("div", { key: m.month, style: { background: "#fff", borderRadius: 12, marginBottom: 10, overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" } },
+        h("div", { style: { padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", background: isOpen ? "#F8F9FF" : "#fff" } },
+          h("span", { onClick: function () { setOpenMonth(isOpen ? null : m.month); }, style: { fontWeight: 700, fontSize: 15, color: "#1A237E", cursor: "pointer", flex: 1 } }, m.month + "（" + m.items.length + " 機型）" + (isOpen ? " ▲" : " ▼")),
+          h("button", { onClick: function () { delMonth(m.month); }, style: { fontSize: 11, color: "#C62828", border: "none", background: "none", cursor: "pointer", fontFamily: "inherit" } }, "刪除月")
+        ),
+        isOpen ? h("div", { style: { borderTop: "1px solid #F0F0F0", padding: "12px 14px" } },
+          m.items.map(function (it) {
+            return h("div", { key: it.model, style: { border: "1px solid #EEE", borderRadius: 8, padding: "10px 12px", marginBottom: 10 } },
+              h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 } },
+                h("span", { style: { fontWeight: 700, fontSize: 14, color: "#1A1A2E", wordBreak: "break-all" } }, it.model),
+                h("button", { onClick: function () { delModel(m.month, it.model); }, style: { fontSize: 11, color: "#C62828", border: "none", background: "none", cursor: "pointer", fontFamily: "inherit", flexShrink: 0 } }, "✕ 刪除")
+              ),
+              h("div", { style: { display: "flex", gap: 8, marginBottom: 8 } },
+                h("div", { style: { flex: 1 } },
+                  h("div", { style: { fontSize: 11, color: "#888", marginBottom: 2 } }, "月初結存"),
+                  h("input", { type: "number", value: it.base, onChange: function (e) { updateField(m.month, it.model, "base", e.target.value); }, style: Object.assign({}, inputS, { width: "100%" }) })
+                ),
+                h("div", { style: { flex: 1 } },
+                  h("div", { style: { fontSize: 11, color: "#888", marginBottom: 2 } }, "結餘"),
+                  h("input", { type: "number", value: it.final, onChange: function (e) { updateField(m.month, it.model, "final", e.target.value); }, style: Object.assign({}, inputS, { width: "100%" }) })
+                )
+              ),
+              h("div", { style: { fontSize: 11, color: "#888", marginBottom: 4 } }, "進出庫明細"),
+              it.moves.map(function (mv, idx) {
+                return h("div", { key: idx, style: { display: "flex", gap: 6, marginBottom: 6, alignItems: "center" } },
+                  h("input", { type: "date", value: mv.date, onChange: function (e) { updateMove(m.month, it.model, idx, "date", e.target.value); }, style: Object.assign({}, inputS, { flex: 1 }) }),
+                  h("input", { value: mv.qty, onChange: function (e) { updateMove(m.month, it.model, idx, "qty", e.target.value); }, placeholder: "數量", style: Object.assign({}, inputS, { width: 70 }) }),
+                  h("button", { onClick: function () { delMove(m.month, it.model, idx); }, style: { fontSize: 14, color: "#C62828", border: "none", background: "none", cursor: "pointer" } }, "✕")
+                );
+              }),
+              h("button", { onClick: function () { addMove(m.month, it.model); }, style: { fontSize: 12, color: "#3949AB", border: "1px solid #C5CAE9", background: "#fff", borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontFamily: "inherit", marginTop: 2 } }, "＋ 加一筆進出庫")
+            );
+          }),
+          h("button", { onClick: function () { addModel(m.month); }, style: { width: "100%", padding: "10px", borderRadius: 8, border: "1.5px dashed #3949AB", background: "#fff", color: "#3949AB", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit", marginTop: 4 } }, "＋ 新增機型")
+        ) : null
+      );
+    }),
+
+    msg ? h("div", { style: { padding: "10px 14px", borderRadius: 8, margin: "10px 0", fontSize: 13, fontWeight: 600, background: msg.indexOf("✅") === 0 ? "#E8F5E9" : "#FFEBEE", color: msg.indexOf("✅") === 0 ? "#2E7D32" : "#C62828" } }, msg) : null,
+
+    h("button", {
+      onClick: saveAll, disabled: saving,
+      style: { width: "100%", padding: "14px", borderRadius: 10, border: "none", background: "#1A237E", color: "#fff", fontWeight: 700, fontSize: 15, cursor: saving ? "not-allowed" : "pointer", fontFamily: "inherit", marginTop: 8, marginBottom: 30 }
+    }, saving ? "儲存中…" : "💾 儲存寄倉表")
+  );
+}
+
+
 // 寄倉表系統容器（登入後檢視寄倉表）
 function ConsignmentSystem() {
   var identityState = useState(null);
   var identity = identityState[0], setIdentity = identityState[1];
   var selectedState = useState(null);
   var selected = selectedState[0], setSelected = selectedState[1];
+  var editModeState = useState(false);
+  var editMode = editModeState[0], setEditMode = editModeState[1];
 
   if (!identity) {
     return h(DealerLogin, { onLogin: function (id) { setIdentity(id); }, title: "📦 寄倉表查詢登入" });
   }
-  var logout = function () { setIdentity(null); setSelected(null); };
+  var logout = function () { setIdentity(null); setSelected(null); setEditMode(false); };
 
   // 經銷商：直接看自己的寄倉表
   if (identity.role === "dealer") {
@@ -864,11 +1032,17 @@ function ConsignmentSystem() {
 
   if (selected) {
     return h("div", null,
-      h("button", { onClick: function () { setSelected(null); }, style: { marginBottom: 12, padding: "8px 14px", borderRadius: 8, border: "1.5px solid #E0E0E0", background: "#fff", color: "#1A237E", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" } }, "← 返回列表"),
-      h("div", { style: { background: "#fff", borderRadius: 12, padding: "14px 16px", marginBottom: 12, boxShadow: "0 1px 4px rgba(0,0,0,0.06)" } },
-        h("div", { style: { fontSize: 15, fontWeight: 800, color: "#1A237E" } }, selected.code + " " + selected.name + " 寄倉表")
+      h("button", { onClick: function () { setSelected(null); setEditMode(false); }, style: { marginBottom: 12, padding: "8px 14px", borderRadius: 8, border: "1.5px solid #E0E0E0", background: "#fff", color: "#1A237E", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" } }, "← 返回列表"),
+      h("div", { style: { background: "#fff", borderRadius: 12, padding: "14px 16px", marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" } },
+        h("div", { style: { fontSize: 15, fontWeight: 800, color: "#1A237E" } }, selected.code + " " + selected.name + " 寄倉表"),
+        h("button", {
+          onClick: function () { setEditMode(!editMode); },
+          style: { padding: "6px 14px", borderRadius: 8, border: "none", background: editMode ? "#C62828" : "#1A237E", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }
+        }, editMode ? "完成編輯" : "✏️ 編輯")
       ),
-      h(ConsignmentView, { code: selected.code })
+      editMode
+        ? h(ConsignmentEditor, { code: selected.code, dealerName: selected.name })
+        : h(ConsignmentView, { code: selected.code })
     );
   }
 
@@ -890,7 +1064,7 @@ function ConsignmentSystem() {
         h("div", { style: { fontSize: 13, fontWeight: 700, color: "#666", padding: "4px 4px 8px" } }, area + " 區" + (meta ? "（業務:" + meta.sales + "）" : "") + " · " + dealers.length + " 家"),
         h("div", { style: { borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" } },
           dealers.map(function (d) {
-            return h("div", { key: d.code, onClick: function () { setSelected(d); },
+            return h("div", { key: d.code, onClick: function () { setSelected(d); setEditMode(false); },
               style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "11px 14px", background: "#fff", borderBottom: "1px solid #F0F0F0", cursor: "pointer" } },
               h("span", { style: { fontSize: 13, fontWeight: 600, color: "#1A1A2E" } }, d.code + " " + d.name),
               h("span", { style: { fontSize: 16, color: "#CCC" } }, "›")
