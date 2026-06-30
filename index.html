@@ -581,7 +581,11 @@ function DealerAreaView(props) {
   // 已填庫存、且在可見範圍內的經銷商
   var filledDealers = [];
   visibleDealers.forEach(function (d) {
-    if (allStock && allStock[d.code]) filledDealers.push(d);
+    if (allStock && allStock[d.code]) {
+      var rec = allStock[d.code];
+      var hasStock = rec.stock && Object.keys(rec.stock).some(function (k) { return rec.stock[k] > 0; });
+      if (hasStock) filledDealers.push(d);
+    }
   });
 
   // 搜尋符合的經銷商（用來新建/編輯）
@@ -1051,7 +1055,13 @@ function ConsignmentSystem() {
       var map = {};
       snap.forEach(function (doc) {
         var d = doc.data();
-        map[doc.id] = { name: d.name || "", consignCode: d.consignCode || "", updatedAt: d.updatedAt || "" };
+        // 只收錄真的有內容的：至少一個月份、且該月份有型號
+        var hasContent = d.months && d.months.length > 0 && d.months.some(function (m) {
+          return m.items && m.items.length > 0;
+        });
+        if (hasContent) {
+          map[doc.id] = { name: d.name || "", consignCode: d.consignCode || "", updatedAt: d.updatedAt || "" };
+        }
       });
       setExisting(map);
     }).catch(function () { setExisting({}); });
