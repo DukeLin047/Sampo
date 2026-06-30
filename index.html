@@ -425,6 +425,8 @@ function DealerStockForm(props) {
   var identity = props.identity;  // {role:'dealer', code, label, area}
   var stockState = useState(null);  // {model: qty}
   var stock = stockState[0], setStock = stockState[1];
+  var customState = useState({});  // {category: [自訂型號]}
+  var custom = customState[0], setCustom = customState[1];
   var loadingState = useState(true);
   var loading = loadingState[0], setLoading = loadingState[1];
   var savingState = useState(false);
@@ -436,11 +438,13 @@ function DealerStockForm(props) {
 
   useEffect(function () {
     DEALER_STOCK_COL.doc(identity.code).get().then(function (doc) {
-      var data = doc.exists ? (doc.data().stock || {}) : {};
-      setStock(data);
+      var data = doc.exists ? doc.data() : {};
+      setStock(data.stock || {});
+      setCustom(data.customModels || {});
       setLoading(false);
     }).catch(function () {
       setStock({});
+      setCustom({});
       setLoading(false);
     });
   }, [identity.code]);
@@ -452,6 +456,30 @@ function DealerStockForm(props) {
     setStock(next);
   }
 
+  function addCustomModel(cat) {
+    var model = prompt("輸入要新增的「" + cat + "」型號");
+    if (!model) return;
+    model = model.trim();
+    if (!model) return;
+    // 檢查是否已存在（內建或自訂）
+    var builtin = DEALER_PRODUCTS[cat] || [];
+    var existing = builtin.concat(custom[cat] || []);
+    if (existing.indexOf(model) !== -1) { alert("此型號已存在"); return; }
+    var next = Object.assign({}, custom);
+    next[cat] = (next[cat] || []).concat([model]);
+    setCustom(next);
+  }
+
+  function delCustomModel(cat, model) {
+    var next = Object.assign({}, custom);
+    next[cat] = (next[cat] || []).filter(function (m) { return m !== model; });
+    setCustom(next);
+    // 同時清掉該型號的庫存值
+    var s = Object.assign({}, stock);
+    delete s[model];
+    setStock(s);
+  }
+
   function saveAll() {
     setSaving(true);
     setMsg("");
@@ -461,7 +489,7 @@ function DealerStockForm(props) {
     });
     var now = new Date().toLocaleString("zh-TW", { hour12: false });
     DEALER_STOCK_COL.doc(identity.code).set({
-      code: identity.code, area: identity.area || "", stock: clean, updatedAt: now
+      code: identity.code, area: identity.area || "", stock: clean, customModels: custom, updatedAt: now
     }).then(function () {
       setSaving(false);
       setMsg("✅ 已儲存店面庫存（" + now + "）");
@@ -475,7 +503,9 @@ function DealerStockForm(props) {
 
   var cats = Object.keys(DEALER_PRODUCTS);
   var catBlocks = cats.map(function (cat) {
-    var models = DEALER_PRODUCTS[cat];
+    var builtinModels = DEALER_PRODUCTS[cat];
+    var customModels = custom[cat] || [];
+    var models = builtinModels.concat(customModels);
     var isOpen = openCat === cat;
     var filledCount = models.filter(function (m) { return stock[m] && stock[m] > 0; }).length;
     return h("div", { key: cat, style: { background: "#fff", borderRadius: 12, marginBottom: 10, overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" } },
@@ -488,17 +518,26 @@ function DealerStockForm(props) {
       ),
       isOpen ? h("div", { style: { borderTop: "1px solid #F0F0F0" } },
         models.map(function (m) {
+          var isCustom = customModels.indexOf(m) !== -1;
           return h("div", { key: m, style: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 16px", borderBottom: "1px solid #F5F5F5" } },
-            h("span", { style: { fontSize: 13, color: "#333", flex: 1, wordBreak: "break-all" } }, m),
-            h("input", {
-              type: "number", min: "0",
-              value: stock[m] === undefined ? "" : stock[m],
-              onChange: function (e) { setQty(m, e.target.value); },
-              placeholder: "0",
-              style: { width: 70, textAlign: "center", padding: "7px 8px", borderRadius: 8, border: "1.5px solid #E0E0E0", fontSize: 14, outline: "none", fontFamily: "inherit" }
-            })
+            h("span", { style: { fontSize: 13, color: "#333", flex: 1, wordBreak: "break-all" } },
+              m, isCustom ? h("span", { style: { fontSize: 10, color: "#3949AB", background: "#EEF0FB", borderRadius: 4, padding: "1px 5px", marginLeft: 6 } }, "新增") : null),
+            h("div", { style: { display: "flex", alignItems: "center", gap: 6 } },
+              h("input", {
+                type: "number", min: "0",
+                value: stock[m] === undefined ? "" : stock[m],
+                onChange: function (e) { setQty(m, e.target.value); },
+                placeholder: "0",
+                style: { width: 70, textAlign: "center", padding: "7px 8px", borderRadius: 8, border: "1.5px solid #E0E0E0", fontSize: 14, outline: "none", fontFamily: "inherit" }
+              }),
+              isCustom ? h("button", { onClick: function () { delCustomModel(cat, m); }, style: { fontSize: 14, color: "#C62828", border: "none", background: "none", cursor: "pointer", padding: "0 2px" } }, "✕") : null
+            )
           );
-        })
+        }),
+        h("button", {
+          onClick: function () { addCustomModel(cat); },
+          style: { width: "100%", padding: "10px", border: "none", borderTop: "1px solid #F0F0F0", background: "#fff", color: "#3949AB", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }
+        }, "＋ 新增型號")
       ) : null
     );
   });
