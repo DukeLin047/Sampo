@@ -537,6 +537,8 @@ function DealerAreaView(props) {
   var loading = loadingState[0], setLoading = loadingState[1];
   var selectedState = useState(null);  // 選中要看哪家經銷商
   var selected = selectedState[0], setSelected = selectedState[1];
+  var searchState = useState("");
+  var searchInput = searchState[0], setSearchInput = searchState[1];
 
   useEffect(function () {
     DEALER_STOCK_COL.get().then(function (snap) {
@@ -576,12 +578,17 @@ function DealerAreaView(props) {
     );
   }
 
-  // 經銷商列表（依區域分組）
-  var areaGroups = {};
+  // 已填庫存、且在可見範圍內的經銷商
+  var filledDealers = [];
   visibleDealers.forEach(function (d) {
-    if (!areaGroups[d.area]) areaGroups[d.area] = [];
-    areaGroups[d.area].push(d);
+    if (allStock && allStock[d.code]) filledDealers.push(d);
   });
+
+  // 搜尋符合的經銷商（用來新建/編輯）
+  var sq = searchInput.trim().toLowerCase();
+  var searchMatches = sq ? visibleDealers.filter(function (d) {
+    return d.code.toLowerCase().indexOf(sq) !== -1 || (d.name && d.name.toLowerCase().indexOf(sq) !== -1);
+  }).slice(0, 8) : [];
 
   return h("div", null,
     h("div", { style: { background: "#fff", borderRadius: 12, padding: "12px 16px", marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" } },
@@ -594,14 +601,33 @@ function DealerAreaView(props) {
         style: { padding: "6px 14px", borderRadius: 8, border: "1.5px solid #E0E0E0", background: "#fff", color: "#C62828", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }
       }, "登出")
     ),
-    Object.keys(areaGroups).map(function (area) {
-      var dealers = areaGroups[area];
-      var meta = DEALER_AREAS[area];
-      return h("div", { key: area, style: { marginBottom: 16 } },
-        h("div", { style: { fontSize: 13, fontWeight: 700, color: "#666", padding: "4px 4px 8px" } },
-          area + " 區" + (meta ? "（業務:" + meta.sales + "）" : "") + " · " + dealers.length + " 家"),
-        h("div", { style: { borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" } },
-          dealers.map(function (d) {
+
+    // 搜尋建立區
+    h("div", { style: { background: "#fff", borderRadius: 12, padding: "14px 16px", marginBottom: 12, boxShadow: "0 1px 4px rgba(0,0,0,0.06)" } },
+      h("div", { style: { fontSize: 13, fontWeight: 700, color: "#1A237E", marginBottom: 8 } }, "🔍 搜尋經銷商建立/編輯庫存"),
+      h("input", {
+        value: searchInput, onChange: function (e) { setSearchInput(e.target.value); },
+        placeholder: "輸入經銷商代號或店名…",
+        style: { width: "100%", boxSizing: "border-box", padding: "11px 12px", borderRadius: 10, border: "1.5px solid #E0E0E0", fontSize: 14, outline: "none", fontFamily: "inherit" }
+      }),
+      searchMatches.length > 0 ? h("div", { style: { border: "1px solid #E0E0E0", borderRadius: 8, marginTop: 8, overflow: "hidden" } },
+        searchMatches.map(function (d) {
+          var has = allStock && allStock[d.code];
+          return h("div", { key: d.code, onClick: function () { setSelected(d); },
+            style: { padding: "10px 12px", borderBottom: "1px solid #F0F0F0", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13 } },
+            h("span", { style: { fontWeight: 600 } }, d.code + " " + d.name),
+            h("span", { style: { fontSize: 11, color: has ? "#2E7D32" : "#3949AB" } }, has ? "已填·編輯" : "＋ 建立")
+          );
+        })
+      ) : null
+    ),
+
+    // 已填列表
+    h("div", { style: { fontSize: 13, fontWeight: 700, color: "#666", padding: "4px 4px 8px" } }, "已填庫存（" + filledDealers.length + " 家）"),
+    filledDealers.length === 0
+      ? h("div", { style: { textAlign: "center", padding: "30px 20px", background: "#fff", borderRadius: 12, color: "#AAA", fontSize: 13 } }, "尚無已填庫存的經銷商，請用上方搜尋建立")
+      : h("div", { style: { borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" } },
+          filledDealers.map(function (d) {
             var rec = allStock[d.code];
             var filled = rec && rec.stock ? Object.keys(rec.stock).filter(function (k) { return rec.stock[k] > 0; }).length : 0;
             return h("div", {
@@ -611,14 +637,12 @@ function DealerAreaView(props) {
             },
               h("div", { style: { minWidth: 0, flex: 1 } },
                 h("div", { style: { fontSize: 13, fontWeight: 600, color: "#1A1A2E" } }, d.code + " " + d.name),
-                h("div", { style: { fontSize: 11, color: rec ? "#2E7D32" : "#C62828", marginTop: 1 } }, rec ? ("已填 " + filled + " 項 · " + (rec.updatedAt || "")) : "尚未填寫")
+                h("div", { style: { fontSize: 11, color: "#2E7D32", marginTop: 1 } }, "已填 " + filled + " 項 · " + (rec.updatedAt || ""))
               ),
               h("span", { style: { fontSize: 16, color: "#CCC", marginLeft: 8 } }, "›")
             );
           })
         )
-      );
-    })
   );
 }
 
