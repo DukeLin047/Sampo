@@ -965,12 +965,26 @@ function ConsignmentEditor(props) {
     setMonths(next);
   }
 
+  function recalcFinal(it) {
+    var inSum = 0, outSum = 0;
+    it.moves.forEach(function (mv) {
+      var q = parseInt(mv.qty, 10) || 0;
+      if (mv.type === "out") outSum += q; else inSum += q;
+    });
+    it.final = (parseInt(it.base, 10) || 0) + inSum - outSum;
+  }
+
   function updateField(monthName, model, field, val) {
     var next = clone(months);
     var mObj = next.find(function (m) { return m.month === monthName; });
     var it = mObj.items.find(function (x) { return x.model === model; });
-    if (field === "base" || field === "final") {
-      it[field] = val === "" ? 0 : (parseInt(val, 10) || 0);
+    if (field === "base") {
+      it.base = val === "" ? 0 : (parseInt(val, 10) || 0);
+      it.finalManual = false;
+      recalcFinal(it);
+    } else if (field === "final") {
+      it.final = val === "" ? 0 : (parseInt(val, 10) || 0);
+      it.finalManual = true;  // 手動覆蓋
     }
     setMonths(next);
   }
@@ -988,6 +1002,8 @@ function ConsignmentEditor(props) {
     var mObj = next.find(function (m) { return m.month === monthName; });
     var it = mObj.items.find(function (x) { return x.model === model; });
     it.moves[idx][field] = val;
+    it.finalManual = false;
+    recalcFinal(it);
     setMonths(next);
   }
 
@@ -996,6 +1012,8 @@ function ConsignmentEditor(props) {
     var mObj = next.find(function (m) { return m.month === monthName; });
     var it = mObj.items.find(function (x) { return x.model === model; });
     it.moves.splice(idx, 1);
+    it.finalManual = false;
+    recalcFinal(it);
     setMonths(next);
   }
 
@@ -1047,7 +1065,7 @@ function ConsignmentEditor(props) {
                   h("input", { type: "number", value: it.base, onChange: function (e) { updateField(m.month, it.model, "base", e.target.value); }, style: Object.assign({}, inputS, { width: "100%" }) })
                 ),
                 h("div", { style: { flex: 1 } },
-                  h("div", { style: { fontSize: 11, color: "#888", marginBottom: 2 } }, "結餘"),
+                  h("div", { style: { fontSize: 11, color: "#888", marginBottom: 2 } }, "結餘", h("span", { style: { color: "#3949AB" } }, "（自動算）")),
                   h("input", { type: "number", value: it.final, onChange: function (e) { updateField(m.month, it.model, "final", e.target.value); }, style: Object.assign({}, inputS, { width: "100%" }) })
                 )
               ),
@@ -1216,9 +1234,9 @@ function ConsignmentSystem() {
               return h("div", { key: d.code, onClick: function () { setSelected(d); setEditMode(false); },
                 style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "11px 14px", background: "#fff", borderBottom: "1px solid #F0F0F0", cursor: "pointer" } },
                 h("div", { style: { minWidth: 0, flex: 1 } },
-                  h("div", { style: { fontSize: 13, fontWeight: 600, color: "#1A1A2E" } }, d.code + " " + d.name),
-                  h("div", { style: { fontSize: 11, color: "#888", marginTop: 1 } },
-                    (info.consignCode ? "寄倉代號 " + info.consignCode + " · " : "") + (info.updatedAt || ""))
+                  h("div", { style: { fontSize: 13, fontWeight: 600, color: "#1A1A2E" } },
+                    d.code + " " + d.name + (info.consignCode ? "（" + info.consignCode + "）" : "")),
+                  h("div", { style: { fontSize: 11, color: "#888", marginTop: 1 } }, info.updatedAt || "")
                 ),
                 h("span", { style: { fontSize: 16, color: "#CCC", marginLeft: 8 } }, "›")
               );
