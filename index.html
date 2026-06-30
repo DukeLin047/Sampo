@@ -400,7 +400,7 @@ function DealerLogin(props) {
   }
 
   return h("div", { style: { background: "#fff", borderRadius: 14, padding: 24, boxShadow: "0 1px 6px rgba(0,0,0,0.07)" } },
-    h("div", { style: { fontWeight: 800, fontSize: 16, color: "#1A237E", marginBottom: 4 } }, "🏪 經銷商店庫登入"),
+    h("div", { style: { fontWeight: 800, fontSize: 16, color: "#1A237E", marginBottom: 4 } }, props.title || "🏪 經銷商店庫登入"),
     h("div", { style: { fontSize: 12, color: "#888", marginBottom: 16, lineHeight: 1.6 } }, "輸入您的經銷商代號（例如 L0303-4503）。區域主管請輸入區域代號（A42B~E）。"),
     h("input", {
       value: acc, onChange: function (e) { setAcc(e.target.value); },
@@ -622,6 +622,197 @@ function DealerAreaView(props) {
   );
 }
 
+// ============ 寄倉表系統 ============
+var CONSIGN_COL = db.collection("consignment");
+
+// 解析寄倉 Excel（多月份分頁）成 JSON
+function parseConsignmentWorkbook(wb) {
+  var months = [];
+  wb.SheetNames.forEach(function (sheetName) {
+    var ws = wb.Sheets[sheetName];
+    var rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+    // 找標題列（含"機型"）
+    var headerRow = -1;
+    for (var r = 0; r < Math.min(5, rows.length); r++) {
+      if (String(rows[r][0]).trim() === "機型") { headerRow = r; break; }
+    }
+    if (headerRow === -1) return;
+    var items = [];
+    for (var r2 = headerRow + 1; r2 < rows.length; r2++) {
+      var model = String(rows[r2][0] || "").trim();
+      if (!model) continue;
+      var base = parseInt(rows[r2][1], 10); if (isNaN(base)) base = 0;
+      var final = parseInt(rows[r2][13], 10); if (isNaN(final)) final = 0;
+      var moves = [];
+      for (var c = 2; c < 13; c += 2) {
+        var date = rows[r2][c], qty = rows[r2][c + 1];
+        if (date !== "" && date != null && qty !== "" && qty != null) {
+          var dstr = String(date).split(" ")[0].split("T")[0];
+          moves.push({ date: dstr, qty: String(qty) });
+        }
+      }
+      items.push({ model: model, base: base, final: final, moves: moves });
+    }
+    months.push({ month: sheetName, items: items });
+  });
+  return months;
+}
+
+// 寄倉表檢視（唯讀）
+function ConsignmentView(props) {
+  var code = props.code;  // 經銷商代號
+  var dataState = useState(null);
+  var data = dataState[0], setData = dataState[1];
+  var loadingState = useState(true);
+  var loading = loadingState[0], setLoading = loadingState[1];
+  var openMonthState = useState(null);
+  var openMonth = openMonthState[0], setOpenMonth = openMonthState[1];
+
+  useEffect(function () {
+    if (!code) { setLoading(false); return; }
+    CONSIGN_COL.doc(code).get().then(function (doc) {
+      if (doc.exists) {
+        var d = doc.data();
+        setData(d);
+        // 預設展開最後一個月
+        if (d.months && d.months.length > 0) setOpenMonth(d.months[d.months.length - 1].month);
+      }
+      setLoading(false);
+    }).catch(function () { setLoading(false); });
+  }, [code]);
+
+  if (loading) return h("div", { style: { textAlign: "center", padding: "40px", color: "#AAA" } }, "載入中…");
+  if (!data || !data.months || data.months.length === 0) {
+    return h("div", { style: { textAlign: "center", padding: "40px 20px", background: "#fff", borderRadius: 14, color: "#AAA" } },
+      h("div", { style: { fontSize: 32 } }, "📦"),
+      h("div", { style: { marginTop: 8, fontSize: 14 } }, "尚無寄倉資料"),
+      h("div", { style: { marginTop: 4, fontSize: 12 } }, "請聯繫管理者上傳寄倉明細")
+    );
+  }
+
+  return h("div", null,
+    data.updatedAt ? h("div", { style: { fontSize: 11, color: "#888", marginBottom: 10, padding: "0 4px" } }, "最後更新：" + data.updatedAt) : null,
+    data.months.map(function (m) {
+      var isOpen = openMonth === m.month;
+      var activeItems = m.items.filter(function (it) { return it.base !== 0 || it.final !== 0 || it.moves.length > 0; });
+      return h("div", { key: m.month, style: { background: "#fff", borderRadius: 12, marginBottom: 10, overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" } },
+        h("div", {
+          onClick: function () { setOpenMonth(isOpen ? null : m.month); },
+          style: { padding: "14px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", background: isOpen ? "#F8F9FF" : "#fff" }
+        },
+          h("span", { style: { fontWeight: 700, fontSize: 15, color: "#1A237E" } }, m.month + " 寄倉明細"),
+          h("span", { style: { fontSize: 12, color: "#888" } }, activeItems.length + " 項　" + (isOpen ? "▲" : "▼"))
+        ),
+        isOpen ? h("div", { style: { borderTop: "1px solid #F0F0F0" } },
+          activeItems.length === 0
+            ? h("div", { style: { padding: "20px", textAlign: "center", color: "#AAA", fontSize: 13 } }, "本月無資料")
+            : h("div", null,
+                // 表頭
+                h("div", { style: { display: "flex", padding: "8px 16px", background: "#FAFAFA", fontSize: 11, color: "#888", fontWeight: 700, borderBottom: "1px solid #F0F0F0" } },
+                  h("span", { style: { flex: 2 } }, "機型"),
+                  h("span", { style: { flex: 1, textAlign: "center" } }, "月初結存"),
+                  h("span", { style: { flex: 1, textAlign: "center" } }, "結餘")
+                ),
+                activeItems.map(function (it) {
+                  return h("div", { key: it.model },
+                    h("div", { style: { display: "flex", padding: "9px 16px", fontSize: 13, borderBottom: it.moves.length ? "none" : "1px solid #F5F5F5", alignItems: "center" } },
+                      h("span", { style: { flex: 2, fontWeight: 600, wordBreak: "break-all" } }, it.model),
+                      h("span", { style: { flex: 1, textAlign: "center", color: "#666" } }, it.base),
+                      h("span", { style: { flex: 1, textAlign: "center", fontWeight: 800, color: it.final > 0 ? "#2E7D32" : "#999" } }, it.final)
+                    ),
+                    it.moves.length ? h("div", { style: { padding: "0 16px 9px 16px", borderBottom: "1px solid #F5F5F5" } },
+                      it.moves.map(function (mv, idx) {
+                        return h("span", { key: idx, style: { display: "inline-block", fontSize: 11, color: "#888", background: "#F5F5F5", borderRadius: 4, padding: "2px 6px", marginRight: 4, marginTop: 2 } }, mv.date + " (" + mv.qty + ")");
+                      })
+                    ) : null
+                  );
+                })
+              )
+        ) : null
+      );
+    })
+  );
+}
+
+
+
+// 管理頁：上傳寄倉 Excel 並指定經銷商
+function ConsignmentUpload() {
+  var searchState = useState("");
+  var search = searchState[0], setSearch = searchState[1];
+  var selectedState = useState(null);
+  var selected = selectedState[0], setSelected = selectedState[1];
+  var msgState = useState("");
+  var msg = msgState[0], setMsg = msgState[1];
+  var busyState = useState(false);
+  var busy = busyState[0], setBusy = busyState[1];
+  var fileRef = useRef();
+
+  var q = search.trim().toLowerCase();
+  var matches = q ? DEALER_LIST.filter(function (d) {
+    return d.code.toLowerCase().indexOf(q) !== -1 || (d.name && d.name.toLowerCase().indexOf(q) !== -1);
+  }).slice(0, 8) : [];
+
+  function onFile(e) {
+    var file = e.target.files[0];
+    if (!file || !selected) return;
+    setBusy(true); setMsg("");
+    var reader = new FileReader();
+    reader.onload = function (evt) {
+      try {
+        var wb = XLSX.read(evt.target.result, { type: "binary" });
+        var months = parseConsignmentWorkbook(wb);
+        if (!months.length) { setMsg("❌ 找不到有效的寄倉資料（需有『機型』標題列）"); setBusy(false); return; }
+        var now = new Date().toLocaleString("zh-TW", { hour12: false });
+        CONSIGN_COL.doc(selected.code).set({ code: selected.code, name: selected.name, months: months, updatedAt: now }).then(function () {
+          setMsg("✅ 已上傳「" + selected.code + " " + selected.name + "」的寄倉表（" + months.length + " 個月份）");
+          setBusy(false);
+        }).catch(function () { setMsg("❌ 上傳失敗，請稍後再試"); setBusy(false); });
+      } catch (err) {
+        console.error(err);
+        setMsg("❌ 解析失敗，請確認 Excel 格式");
+        setBusy(false);
+      }
+    };
+    reader.readAsBinaryString(file);
+    e.target.value = "";
+  }
+
+  return h("div", { style: { background: "#fff", borderRadius: 14, padding: 20, boxShadow: "0 1px 6px rgba(0,0,0,0.07)" } },
+    h("div", { style: { fontWeight: 800, fontSize: 16, color: "#1A237E", marginBottom: 4 } }, "📦 上傳經銷商寄倉表"),
+    h("div", { style: { fontSize: 12, color: "#888", marginBottom: 14, lineHeight: 1.6 } }, "先搜尋選擇經銷商，再上傳該店的寄倉 Excel（多月份分頁）。上傳後該經銷商登入「寄倉表」即可檢視。"),
+    selected
+      ? h("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "#F8F9FF", borderRadius: 8, marginBottom: 12 } },
+          h("div", null,
+            h("div", { style: { fontSize: 13, fontWeight: 700, color: "#1A237E" } }, selected.code + " " + selected.name),
+            h("div", { style: { fontSize: 11, color: "#888", marginTop: 2 } }, selected.area + " 區")
+          ),
+          h("button", { onClick: function () { setSelected(null); setSearch(""); }, style: { fontSize: 12, color: "#C62828", border: "none", background: "none", cursor: "pointer", fontFamily: "inherit" } }, "✕ 重選")
+        )
+      : h("div", { style: { position: "relative", marginBottom: 12 } },
+          h("input", { value: search, onChange: function (e) { setSearch(e.target.value); }, placeholder: "搜尋經銷商代號或店名…",
+            style: { width: "100%", boxSizing: "border-box", padding: "11px 12px", borderRadius: 10, border: "1.5px solid #E0E0E0", fontSize: 14, outline: "none", fontFamily: "inherit" } }),
+          matches.length > 0 ? h("div", { style: { border: "1px solid #E0E0E0", borderRadius: 8, marginTop: 6, overflow: "hidden" } },
+            matches.map(function (d) {
+              return h("div", { key: d.code, onClick: function () { setSelected(d); },
+                style: { padding: "9px 12px", borderBottom: "1px solid #F0F0F0", cursor: "pointer", display: "flex", justifyContent: "space-between", fontSize: 13 } },
+                h("span", { style: { fontWeight: 600 } }, d.code + " " + d.name),
+                h("span", { style: { color: "#888" } }, d.area)
+              );
+            })
+          ) : null
+        ),
+    selected ? h("button", {
+      onClick: function () { if (fileRef.current) fileRef.current.click(); },
+      disabled: busy,
+      style: { width: "100%", padding: "14px", borderRadius: 10, border: "2px dashed #3949AB", background: busy ? "#F5F5F5" : "#EEF0FB", color: "#3949AB", fontWeight: 700, fontSize: 14, cursor: busy ? "not-allowed" : "pointer", fontFamily: "inherit" }
+    }, busy ? "⏳ 解析並上傳中…" : "📁 選擇寄倉 Excel 上傳") : null,
+    h("input", { ref: fileRef, type: "file", accept: ".xlsx,.xls,.xlsm", onChange: onFile, style: { display: "none" } }),
+    msg ? h("div", { style: { marginTop: 12, padding: "10px 14px", borderRadius: 8, fontSize: 13, fontWeight: 600, background: msg.indexOf("✅") === 0 ? "#E8F5E9" : "#FFEBEE", color: msg.indexOf("✅") === 0 ? "#2E7D32" : "#C62828" } }, msg) : null
+  );
+}
+
+
 // 經銷商系統主容器
 function DealerSystem() {
   var identityState = useState(null);
@@ -636,6 +827,79 @@ function DealerSystem() {
   }
   // area 或 hq
   return h(DealerAreaView, { identity: identity, onLogout: logout });
+}
+
+// 寄倉表系統容器（登入後檢視寄倉表）
+function ConsignmentSystem() {
+  var identityState = useState(null);
+  var identity = identityState[0], setIdentity = identityState[1];
+  var selectedState = useState(null);
+  var selected = selectedState[0], setSelected = selectedState[1];
+
+  if (!identity) {
+    return h(DealerLogin, { onLogin: function (id) { setIdentity(id); }, title: "📦 寄倉表查詢登入" });
+  }
+  var logout = function () { setIdentity(null); setSelected(null); };
+
+  // 經銷商：直接看自己的寄倉表
+  if (identity.role === "dealer") {
+    return h("div", null,
+      h("div", { style: { background: "#fff", borderRadius: 12, padding: "12px 16px", marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" } },
+        h("div", null,
+          h("div", { style: { fontSize: 11, color: "#888" } }, "寄倉表"),
+          h("div", { style: { fontSize: 14, fontWeight: 700, color: "#1A237E" } }, identity.label)
+        ),
+        h("button", { onClick: logout, style: { padding: "6px 14px", borderRadius: 8, border: "1.5px solid #E0E0E0", background: "#fff", color: "#C62828", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit" } }, "登出")
+      ),
+      h(ConsignmentView, { code: identity.code })
+    );
+  }
+
+  // 區域主管/總部：選經銷商看
+  var visibleDealers = DEALER_LIST.filter(function (d) {
+    if (identity.role === "hq") return true;
+    if (identity.role === "area") return d.area === identity.code;
+    return false;
+  });
+
+  if (selected) {
+    return h("div", null,
+      h("button", { onClick: function () { setSelected(null); }, style: { marginBottom: 12, padding: "8px 14px", borderRadius: 8, border: "1.5px solid #E0E0E0", background: "#fff", color: "#1A237E", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" } }, "← 返回列表"),
+      h("div", { style: { background: "#fff", borderRadius: 12, padding: "14px 16px", marginBottom: 12, boxShadow: "0 1px 4px rgba(0,0,0,0.06)" } },
+        h("div", { style: { fontSize: 15, fontWeight: 800, color: "#1A237E" } }, selected.code + " " + selected.name + " 寄倉表")
+      ),
+      h(ConsignmentView, { code: selected.code })
+    );
+  }
+
+  var areaGroups = {};
+  visibleDealers.forEach(function (d) { if (!areaGroups[d.area]) areaGroups[d.area] = []; areaGroups[d.area].push(d); });
+
+  return h("div", null,
+    h("div", { style: { background: "#fff", borderRadius: 12, padding: "12px 16px", marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" } },
+      h("div", null,
+        h("div", { style: { fontSize: 11, color: "#888" } }, "寄倉表 · " + (identity.role === "hq" ? "總管理" : "區域主管")),
+        h("div", { style: { fontSize: 14, fontWeight: 700, color: "#1A237E" } }, identity.label)
+      ),
+      h("button", { onClick: logout, style: { padding: "6px 14px", borderRadius: 8, border: "1.5px solid #E0E0E0", background: "#fff", color: "#C62828", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit" } }, "登出")
+    ),
+    Object.keys(areaGroups).map(function (area) {
+      var dealers = areaGroups[area];
+      var meta = DEALER_AREAS[area];
+      return h("div", { key: area, style: { marginBottom: 16 } },
+        h("div", { style: { fontSize: 13, fontWeight: 700, color: "#666", padding: "4px 4px 8px" } }, area + " 區" + (meta ? "（業務:" + meta.sales + "）" : "") + " · " + dealers.length + " 家"),
+        h("div", { style: { borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" } },
+          dealers.map(function (d) {
+            return h("div", { key: d.code, onClick: function () { setSelected(d); },
+              style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "11px 14px", background: "#fff", borderBottom: "1px solid #F0F0F0", cursor: "pointer" } },
+              h("span", { style: { fontSize: 13, fontWeight: 600, color: "#1A1A2E" } }, d.code + " " + d.name),
+              h("span", { style: { fontSize: 16, color: "#CCC" } }, "›")
+            );
+          })
+        )
+      );
+    })
+  );
 }
 
 
@@ -655,7 +919,7 @@ function InventoryApp() {
   var categoryFilterState = useState("全部");
   var categoryFilter = categoryFilterState[0], setCategoryFilter = categoryFilterState[1];
 
-  var tabState = useState("查詢");
+  var tabState = useState("寄倉");
   var tab = tabState[0], setTab = tabState[1];
 
   var uploadMsgState = useState("");
@@ -883,7 +1147,7 @@ function InventoryApp() {
       )
     ),
     h("div", { style: { display: "flex", gap: 4, marginTop: 16 } },
-      [{ key: "查詢", label: "公司貨源查詢" }, { key: "經銷商", label: "經銷商店庫資料表" }, { key: "管理", label: "管理" }].map(function (t) {
+      [{ key: "寄倉", label: "寄倉表" }, { key: "經銷商", label: "經銷商店庫資料表" }, { key: "管理", label: "管理" }].map(function (t) {
         return h("button", {
           key: t.key,
           onClick: function () { setTab(t.key); },
@@ -1037,6 +1301,7 @@ function InventoryApp() {
           }
         }, uploadMsg) : null
       ),
+      h(ConsignmentUpload),
       h(AdjustPanel, { data: data, onApply: handleAdjust }),
       h(AdjustedList, { data: data, onApply: handleAdjust }),
       h("div", { style: { background: "#fff", borderRadius: 14, padding: 20, boxShadow: "0 1px 6px rgba(0,0,0,0.07)" } },
@@ -1060,15 +1325,24 @@ function InventoryApp() {
     dealerContent = h(DealerSystem);
   }
 
+  // ── 寄倉表分頁內容 ──
+  var consignContent = null;
+  if (tab === "寄倉") {
+    consignContent = h(ConsignmentSystem);
+  }
+
   var bodyContent;
-  if (tab === "查詢") bodyContent = queryContent;
+  if (tab === "寄倉") bodyContent = consignContent;
+  else if (tab === "經銷商") bodyContent = dealerContent;
   else if (tab === "管理") bodyContent = manageContent;
-  else bodyContent = dealerContent;
+  else bodyContent = queryContent;
+
+  var needLoading = (tab === "管理") && loading;
 
   return h("div", { style: { minHeight: "100vh", background: "#F2F4F8", maxWidth: 480, margin: "0 auto" } },
     header,
     h("div", { style: { padding: "16px 16px 40px" } },
-      (loading && tab !== "經銷商") ? h("div", { style: { textAlign: "center", padding: "60px 20px", color: "#AAAAAA" } }, "載入中…") : bodyContent
+      needLoading ? h("div", { style: { textAlign: "center", padding: "60px 20px", color: "#AAAAAA" } }, "載入中…") : bodyContent
     )
   );
 }
