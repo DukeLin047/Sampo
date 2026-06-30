@@ -691,7 +691,8 @@ function ConsignmentView(props) {
   }
 
   return h("div", null,
-    data.updatedAt ? h("div", { style: { fontSize: 11, color: "#888", marginBottom: 10, padding: "0 4px" } }, "最後更新：" + data.updatedAt) : null,
+    (data.consignCode || data.updatedAt) ? h("div", { style: { fontSize: 11, color: "#888", marginBottom: 10, padding: "0 4px" } },
+      (data.consignCode ? "寄倉代號：" + data.consignCode + "　" : "") + (data.updatedAt ? "最後更新：" + data.updatedAt : "")) : null,
     data.months.map(function (m) {
       var isOpen = openMonth === m.month;
       var activeItems = m.items.filter(function (it) { return it.base !== 0 || it.final !== 0 || it.moves.length > 0; });
@@ -836,6 +837,8 @@ function ConsignmentEditor(props) {
   var dealerName = props.dealerName || "";
   var monthsState = useState(null);
   var months = monthsState[0], setMonths = monthsState[1];
+  var consignCodeState = useState("");
+  var consignCode = consignCodeState[0], setConsignCode = consignCodeState[1];
   var loadingState = useState(true);
   var loading = loadingState[0], setLoading = loadingState[1];
   var savingState = useState(false);
@@ -847,8 +850,10 @@ function ConsignmentEditor(props) {
 
   useEffect(function () {
     CONSIGN_COL.doc(code).get().then(function (doc) {
-      var m = doc.exists && doc.data().months ? doc.data().months : [];
+      var data = doc.exists ? doc.data() : {};
+      var m = data.months ? data.months : [];
       setMonths(m);
+      setConsignCode(data.consignCode || "");
       if (m.length > 0) setOpenMonth(m[m.length - 1].month);
       setLoading(false);
     }).catch(function () { setMonths([]); setLoading(false); });
@@ -928,7 +933,7 @@ function ConsignmentEditor(props) {
   function saveAll() {
     setSaving(true); setMsg("");
     var now = new Date().toLocaleString("zh-TW", { hour12: false });
-    CONSIGN_COL.doc(code).set({ code: code, name: dealerName, months: months, updatedAt: now }).then(function () {
+    CONSIGN_COL.doc(code).set({ code: code, name: dealerName, consignCode: consignCode, months: months, updatedAt: now }).then(function () {
       setSaving(false); setMsg("✅ 已儲存（" + now + "）");
     }).catch(function () { setSaving(false); setMsg("❌ 儲存失敗"); });
   }
@@ -938,6 +943,14 @@ function ConsignmentEditor(props) {
   var inputS = { padding: "6px 8px", borderRadius: 6, border: "1.5px solid #E0E0E0", fontSize: 13, outline: "none", fontFamily: "inherit", boxSizing: "border-box" };
 
   return h("div", null,
+    h("div", { style: { background: "#fff", borderRadius: 12, padding: "14px 16px", marginBottom: 12, boxShadow: "0 1px 4px rgba(0,0,0,0.06)" } },
+      h("div", { style: { fontSize: 12, color: "#888", marginBottom: 6 } }, "寄倉代號"),
+      h("input", {
+        value: consignCode, onChange: function (e) { setConsignCode(e.target.value); },
+        placeholder: "例如 G1FM",
+        style: { width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 8, border: "1.5px solid #E0E0E0", fontSize: 14, outline: "none", fontFamily: "inherit" }
+      })
+    ),
     h("button", {
       onClick: addMonth,
       style: { width: "100%", padding: "12px", borderRadius: 10, border: "2px dashed #3949AB", background: "#EEF0FB", color: "#3949AB", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit", marginBottom: 12 }
@@ -1003,6 +1016,22 @@ function ConsignmentSystem() {
   var selected = selectedState[0], setSelected = selectedState[1];
   var editModeState = useState(false);
   var editMode = editModeState[0], setEditMode = editModeState[1];
+  var existingState = useState(null);  // 已建立寄倉的經銷商 {code: {name, consignCode, updatedAt}}
+  var existing = existingState[0], setExisting = existingState[1];
+  var searchState = useState("");
+  var searchInput = searchState[0], setSearchInput = searchState[1];
+
+  useEffect(function () {
+    if (!identity || identity.role === "dealer") return;
+    CONSIGN_COL.get().then(function (snap) {
+      var map = {};
+      snap.forEach(function (doc) {
+        var d = doc.data();
+        map[doc.id] = { name: d.name || "", consignCode: d.consignCode || "", updatedAt: d.updatedAt || "" };
+      });
+      setExisting(map);
+    }).catch(function () { setExisting({}); });
+  }, [identity]);
 
   if (!identity) {
     return h(DealerLogin, { onLogin: function (id) { setIdentity(id); }, title: "📦 寄倉表查詢登入" });
@@ -1046,8 +1075,22 @@ function ConsignmentSystem() {
     );
   }
 
-  var areaGroups = {};
-  visibleDealers.forEach(function (d) { if (!areaGroups[d.area]) areaGroups[d.area] = []; areaGroups[d.area].push(d); });
+  // 已建立寄倉、且在此身分可見範圍內的經銷商
+  var existingDealers = [];
+  if (existing) {
+    DEALER_LIST.forEach(function (d) {
+      var inScope = identity.role === "hq" || (identity.role === "area" && d.area === identity.code);
+      if (inScope && existing[d.code]) {
+        existingDealers.push(d);
+      }
+    });
+  }
+
+  // 搜尋符合的經銷商（用來新建）
+  var sq = searchInput.trim().toLowerCase();
+  var searchMatches = sq ? visibleDealers.filter(function (d) {
+    return d.code.toLowerCase().indexOf(sq) !== -1 || (d.name && d.name.toLowerCase().indexOf(sq) !== -1);
+  }).slice(0, 8) : [];
 
   return h("div", null,
     h("div", { style: { background: "#fff", borderRadius: 12, padding: "12px 16px", marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" } },
@@ -1057,22 +1100,47 @@ function ConsignmentSystem() {
       ),
       h("button", { onClick: logout, style: { padding: "6px 14px", borderRadius: 8, border: "1.5px solid #E0E0E0", background: "#fff", color: "#C62828", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit" } }, "登出")
     ),
-    Object.keys(areaGroups).map(function (area) {
-      var dealers = areaGroups[area];
-      var meta = DEALER_AREAS[area];
-      return h("div", { key: area, style: { marginBottom: 16 } },
-        h("div", { style: { fontSize: 13, fontWeight: 700, color: "#666", padding: "4px 4px 8px" } }, area + " 區" + (meta ? "（業務:" + meta.sales + "）" : "") + " · " + dealers.length + " 家"),
-        h("div", { style: { borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" } },
-          dealers.map(function (d) {
-            return h("div", { key: d.code, onClick: function () { setSelected(d); setEditMode(false); },
-              style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "11px 14px", background: "#fff", borderBottom: "1px solid #F0F0F0", cursor: "pointer" } },
-              h("span", { style: { fontSize: 13, fontWeight: 600, color: "#1A1A2E" } }, d.code + " " + d.name),
-              h("span", { style: { fontSize: 16, color: "#CCC" } }, "›")
-            );
-          })
-        )
-      );
-    })
+
+    // 搜尋建立區
+    h("div", { style: { background: "#fff", borderRadius: 12, padding: "14px 16px", marginBottom: 12, boxShadow: "0 1px 4px rgba(0,0,0,0.06)" } },
+      h("div", { style: { fontSize: 13, fontWeight: 700, color: "#1A237E", marginBottom: 8 } }, "🔍 搜尋經銷商建立寄倉表"),
+      h("input", {
+        value: searchInput, onChange: function (e) { setSearchInput(e.target.value); },
+        placeholder: "輸入經銷商代號或店名…",
+        style: { width: "100%", boxSizing: "border-box", padding: "11px 12px", borderRadius: 10, border: "1.5px solid #E0E0E0", fontSize: 14, outline: "none", fontFamily: "inherit" }
+      }),
+      searchMatches.length > 0 ? h("div", { style: { border: "1px solid #E0E0E0", borderRadius: 8, marginTop: 8, overflow: "hidden" } },
+        searchMatches.map(function (d) {
+          var has = existing && existing[d.code];
+          return h("div", { key: d.code, onClick: function () { setSelected(d); setEditMode(true); },
+            style: { padding: "10px 12px", borderBottom: "1px solid #F0F0F0", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13 } },
+            h("span", { style: { fontWeight: 600 } }, d.code + " " + d.name),
+            h("span", { style: { fontSize: 11, color: has ? "#2E7D32" : "#3949AB" } }, has ? "已建立·編輯" : "＋ 建立")
+          );
+        })
+      ) : null
+    ),
+
+    // 已建立列表
+    h("div", { style: { fontSize: 13, fontWeight: 700, color: "#666", padding: "4px 4px 8px" } }, "已建立寄倉表（" + existingDealers.length + " 家）"),
+    existing === null
+      ? h("div", { style: { textAlign: "center", padding: "20px", color: "#AAA", fontSize: 13 } }, "載入中…")
+      : existingDealers.length === 0
+        ? h("div", { style: { textAlign: "center", padding: "30px 20px", background: "#fff", borderRadius: 12, color: "#AAA", fontSize: 13 } }, "尚無已建立的寄倉表，請用上方搜尋建立")
+        : h("div", { style: { borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" } },
+            existingDealers.map(function (d) {
+              var info = existing[d.code];
+              return h("div", { key: d.code, onClick: function () { setSelected(d); setEditMode(false); },
+                style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "11px 14px", background: "#fff", borderBottom: "1px solid #F0F0F0", cursor: "pointer" } },
+                h("div", { style: { minWidth: 0, flex: 1 } },
+                  h("div", { style: { fontSize: 13, fontWeight: 600, color: "#1A1A2E" } }, d.code + " " + d.name),
+                  h("div", { style: { fontSize: 11, color: "#888", marginTop: 1 } },
+                    (info.consignCode ? "寄倉代號 " + info.consignCode + " · " : "") + (info.updatedAt || ""))
+                ),
+                h("span", { style: { fontSize: 16, color: "#CCC", marginLeft: 8 } }, "›")
+              );
+            })
+          )
   );
 }
 
