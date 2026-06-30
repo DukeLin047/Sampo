@@ -782,19 +782,24 @@ function ConsignmentView(props) {
                   h("span", { style: { flex: 1, textAlign: "center" } }, "結餘")
                 ),
                 activeItems.map(function (it) {
-                  return h("div", { key: it.model },
-                    h("div", { style: { display: "flex", padding: "9px 16px", fontSize: 13, borderBottom: it.moves.length ? "none" : "1px solid #F5F5F5", alignItems: "center" } },
+                  return h("div", { key: it.model, style: { borderBottom: "1px solid #F5F5F5", padding: "9px 16px" } },
+                    h("div", { style: { display: "flex", fontSize: 13, alignItems: "center" } },
                       h("span", { style: { flex: 2, fontWeight: 600, wordBreak: "break-all" } }, it.model),
                       h("span", { style: { flex: 1, textAlign: "center", color: "#666" } }, it.base),
-                      h("span", { style: { flex: 1, textAlign: "center", fontWeight: 800, color: it.final > 0 ? "#2E7D32" : "#999" } }, it.final)
+                      h("span", { style: { flex: 1 } })
                     ),
-                    it.moves.length ? h("div", { style: { padding: "0 16px 9px 16px", borderBottom: "1px solid #F5F5F5" } },
+                    it.moves.length ? h("div", { style: { padding: "4px 0" } },
                       it.moves.map(function (mv, idx) {
                         var isOut = mv.type === "out";
                         var label = (isOut ? "出 " : "入 ") + mv.date + " (" + mv.qty + ")" + (isOut && mv.who ? " 借:" + mv.who : "");
                         return h("span", { key: idx, style: { display: "inline-block", fontSize: 11, borderRadius: 4, padding: "2px 6px", marginRight: 4, marginTop: 2, background: isOut ? "#FFEBEE" : "#E8F5E9", color: isOut ? "#C62828" : "#2E7D32" } }, label);
                       })
-                    ) : null
+                    ) : null,
+                    h("div", { style: { display: "flex", fontSize: 13, alignItems: "center", marginTop: it.moves.length ? 2 : 0 } },
+                      h("span", { style: { flex: 2, fontSize: 11, color: "#AAA" } }, "結餘"),
+                      h("span", { style: { flex: 1 } }),
+                      h("span", { style: { flex: 1, textAlign: "center", fontWeight: 800, color: it.final > 0 ? "#2E7D32" : "#999" } }, it.final)
+                    )
                   );
                 })
               )
