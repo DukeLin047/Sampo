@@ -958,9 +958,13 @@ function PriceListView() {
         ),
         showItems ? h("div", { style: { borderTop: "1px solid #F0F0F0" } },
           items.map(function (it, idx) {
+            var modelKey = it.model.split(/[\s(（]/)[0];  // 取型號主體(去掉附註)
+            var searchUrl = "https://www.google.com/search?tbm=isch&q=" + encodeURIComponent("SAMPO 聲寶 " + modelKey);
             return h("div", { key: idx, style: { padding: "10px 16px", borderBottom: "1px solid #F5F5F5" } },
               h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 } },
                 h("span", { style: { fontWeight: 700, fontSize: 14, color: "#1A1A2E", wordBreak: "break-all", flex: 1 } }, it.model),
+                h("a", { href: searchUrl, target: "_blank", rel: "noopener noreferrer",
+                  style: { fontSize: 11, color: "#3949AB", background: "#EEF0FB", borderRadius: 6, padding: "3px 8px", marginLeft: 6, flexShrink: 0, textDecoration: "none", fontWeight: 700, whiteSpace: "nowrap" } }, "🔍 找圖"),
                 it.cat ? h("span", { style: { fontSize: 10, color: "#888", background: "#F0F0F0", borderRadius: 4, padding: "1px 6px", marginLeft: 6, flexShrink: 0 } }, it.cat) : null
               ),
               h("div", { style: { display: "flex", flexWrap: "wrap", gap: 10, fontSize: 12 } },
