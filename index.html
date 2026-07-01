@@ -935,10 +935,12 @@ function PriceListView() {
     data.sheets.map(function (sheet) {
       var isOpen = openSheet === sheet.name && !q;
       // 搜尋時全部展開並過濾
-      var items = sheet.items;
+      var items = sheet.items || [];
       if (q) items = items.filter(function (it) { return it.model.toLowerCase().indexOf(q) !== -1; });
       if (q && items.length === 0) return null;
       var showItems = q || isOpen;
+      var cols = sheet.columns || [];  // 防呆：舊資料可能沒有 columns
+      var modelCol = (sheet.modelCol === undefined || sheet.modelCol === null) ? 0 : sheet.modelCol;
       return h("div", { key: sheet.name, style: { background: "#fff", borderRadius: 12, marginBottom: 10, overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" } },
         h("div", {
           onClick: function () { if (!q) setOpenSheet(isOpen ? null : sheet.name); },
@@ -947,13 +949,15 @@ function PriceListView() {
           h("span", { style: { fontWeight: 700, fontSize: 15, color: "#1A237E" } }, sheet.name),
           h("span", { style: { fontSize: 12, color: "#888" } }, items.length + " 項" + (q ? "" : (isOpen ? " ▲" : " ▼")))
         ),
-        showItems ? h("div", { style: { borderTop: "1px solid #F0F0F0", overflowX: "auto", WebkitOverflowScrolling: "touch" } },
+        showItems ? (cols.length === 0
+          ? h("div", { style: { padding: "20px 16px", borderTop: "1px solid #F0F0F0", color: "#C62828", fontSize: 13, lineHeight: 1.6 } }, "此為舊版價格表資料，請管理者到「管理」分頁重新上傳一次價格表 Excel，即可顯示完整表格。")
+          : h("div", { style: { borderTop: "1px solid #F0F0F0", overflowX: "auto", WebkitOverflowScrolling: "touch" } },
           h("table", { style: { borderCollapse: "collapse", fontSize: 12, whiteSpace: "nowrap", minWidth: "100%" } },
             h("thead", null,
               h("tr", { style: { background: "#F8F9FF" } },
-                sheet.columns.map(function (col, ci) {
+                cols.map(function (col, ci) {
                   if (!col) return null;
-                  return h("th", { key: ci, style: { padding: "8px 10px", textAlign: "left", fontWeight: 700, color: "#1A237E", borderBottom: "2px solid #E0E0E0", borderRight: "1px solid #F0F0F0", position: ci === sheet.modelCol ? "sticky" : "static", left: ci === sheet.modelCol ? 0 : "auto", background: "#F8F9FF", zIndex: ci === sheet.modelCol ? 1 : "auto" } }, col);
+                  return h("th", { key: ci, style: { padding: "8px 10px", textAlign: "left", fontWeight: 700, color: "#1A237E", borderBottom: "2px solid #E0E0E0", borderRight: "1px solid #F0F0F0", position: ci === modelCol ? "sticky" : "static", left: ci === modelCol ? 0 : "auto", background: "#F8F9FF", zIndex: ci === modelCol ? 1 : "auto" } }, col);
                 }),
                 h("th", { style: { padding: "8px 10px", borderBottom: "2px solid #E0E0E0" } }, "圖片")
               )
@@ -963,10 +967,10 @@ function PriceListView() {
                 var modelKey = it.model.split(/[\s(（]/)[0];
                 var searchUrl = "https://www.google.com/search?tbm=isch&q=" + encodeURIComponent("SAMPO 聲寶 " + modelKey);
                 return h("tr", { key: idx, style: { borderBottom: "1px solid #F5F5F5" } },
-                  sheet.columns.map(function (col, ci) {
+                  cols.map(function (col, ci) {
                     if (!col) return null;
-                    var cellVal = it.cells[ci] || "";
-                    var isModel = ci === sheet.modelCol;
+                    var cellVal = (it.cells && it.cells[ci]) || "";
+                    var isModel = ci === modelCol;
                     return h("td", { key: ci, style: { padding: "8px 10px", borderRight: "1px solid #F5F5F5", color: isModel ? "#1A1A2E" : "#555", fontWeight: isModel ? 700 : 400, position: isModel ? "sticky" : "static", left: isModel ? 0 : "auto", background: "#fff", zIndex: isModel ? 1 : "auto" } }, cellVal);
                   }),
                   h("td", { style: { padding: "8px 10px", textAlign: "center" } },
@@ -977,7 +981,7 @@ function PriceListView() {
               })
             )
           )
-        ) : null
+        )) : null
       );
     })
   );
