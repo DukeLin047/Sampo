@@ -811,6 +811,214 @@ function ConsignmentView(props) {
 
 
 
+// ============ 價格表系統 ============
+var PRICE_COL = db.collection("priceList");
+
+// 解析價格表 Excel（多分頁，每頁欄位位置不同，用標題比對）
+function parsePriceWorkbook(wb) {
+  var sheets = [];
+  wb.SheetNames.forEach(function (sheetName) {
+    var ws = wb.Sheets[sheetName];
+    var rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+    // 找標題列（含"機型"）
+    var hr = -1;
+    for (var r = 0; r < Math.min(6, rows.length); r++) {
+      var rowJoined = rows[r].map(function (x) { return String(x).replace(/\n/g, ""); });
+      if (rowJoined.indexOf("機型") !== -1) { hr = r; break; }
+    }
+    if (hr === -1) return;
+    var header = rows[hr].map(function (x) { return String(x).replace(/\n/g, ""); });
+    function findCol(names) {
+      for (var i = 0; i < header.length; i++) {
+        for (var n = 0; n < names.length; n++) {
+          if (header[i].indexOf(names[n]) !== -1) return i;
+        }
+      }
+      return -1;
+    }
+    var cModel = findCol(["機型"]);
+    var cCat = findCol(["產品別"]);
+    var cBase = findCol(["批價"]);
+    var cPromo = findCol(["本月特促", "特促"]);
+    var cSuggest = findCol(["建議售價", "建議"]);
+    // 售價：精確等於「售價」
+    var cPrice = -1;
+    for (var i2 = 0; i2 < header.length; i2++) { if (header[i2] === "售價") { cPrice = i2; break; } }
+
+    var items = [];
+    var curCat = "";
+    for (var r2 = hr + 1; r2 < rows.length; r2++) {
+      var row = rows[r2];
+      var model = String(row[cModel] || "").replace(/\n/g, " ").trim();
+      if (!model) continue;
+      var cat = cCat >= 0 ? String(row[cCat] || "").replace(/\n/g, "").trim() : "";
+      if (cat) curCat = cat;
+      function val(ci) { return ci >= 0 ? String(row[ci] || "").replace(/\n/g, " ").trim() : ""; }
+      items.push({
+        cat: curCat,
+        model: model,
+        base: val(cBase),
+        promo: val(cPromo),
+        suggest: val(cSuggest),
+        price: val(cPrice)
+      });
+    }
+    if (items.length > 0) sheets.push({ name: sheetName, items: items });
+  });
+  return sheets;
+}
+
+// 價格表檢視（登入後可看）
+function PriceListView() {
+  var dataState = useState(null);
+  var data = dataState[0], setData = dataState[1];
+  var loadingState = useState(true);
+  var loading = loadingState[0], setLoading = loadingState[1];
+  var openSheetState = useState(null);
+  var openSheet = openSheetState[0], setOpenSheet = openSheetState[1];
+  var searchState = useState("");
+  var search = searchState[0], setSearch = searchState[1];
+
+  useEffect(function () {
+    PRICE_COL.doc("current").get().then(function (doc) {
+      if (doc.exists) {
+        var d = doc.data();
+        setData(d);
+        if (d.sheets && d.sheets.length > 0) setOpenSheet(d.sheets[0].name);
+      }
+      setLoading(false);
+    }).catch(function () { setLoading(false); });
+  }, []);
+
+  if (loading) return h("div", { style: { textAlign: "center", padding: "40px", color: "#AAA" } }, "載入中…");
+  if (!data || !data.sheets || data.sheets.length === 0) {
+    return h("div", { style: { textAlign: "center", padding: "40px 20px", background: "#fff", borderRadius: 14, color: "#AAA" } },
+      h("div", { style: { fontSize: 32 } }, "💲"),
+      h("div", { style: { marginTop: 8, fontSize: 14 } }, "尚無價格表"),
+      h("div", { style: { marginTop: 4, fontSize: 12 } }, "請聯繫管理者上傳")
+    );
+  }
+
+  var q = search.trim().toLowerCase();
+
+  return h("div", null,
+    data.updatedAt ? h("div", { style: { fontSize: 11, color: "#888", marginBottom: 10, padding: "0 4px" } }, (data.title || "價格表") + "　最後更新：" + data.updatedAt) : null,
+    h("input", {
+      value: search, onChange: function (e) { setSearch(e.target.value); },
+      placeholder: "🔍 搜尋機型…",
+      style: { width: "100%", boxSizing: "border-box", padding: "11px 12px", marginBottom: 12, borderRadius: 10, border: "1.5px solid #E0E0E0", fontSize: 14, outline: "none", fontFamily: "inherit" }
+    }),
+    data.sheets.map(function (sheet) {
+      var isOpen = openSheet === sheet.name && !q;
+      // 搜尋時全部展開並過濾
+      var items = sheet.items;
+      if (q) items = items.filter(function (it) { return it.model.toLowerCase().indexOf(q) !== -1; });
+      if (q && items.length === 0) return null;
+      var showItems = q || isOpen;
+      return h("div", { key: sheet.name, style: { background: "#fff", borderRadius: 12, marginBottom: 10, overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" } },
+        h("div", {
+          onClick: function () { if (!q) setOpenSheet(isOpen ? null : sheet.name); },
+          style: { padding: "14px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: q ? "default" : "pointer", background: showItems ? "#F8F9FF" : "#fff" }
+        },
+          h("span", { style: { fontWeight: 700, fontSize: 15, color: "#1A237E" } }, sheet.name),
+          h("span", { style: { fontSize: 12, color: "#888" } }, items.length + " 項" + (q ? "" : (isOpen ? " ▲" : " ▼")))
+        ),
+        showItems ? h("div", { style: { borderTop: "1px solid #F0F0F0" } },
+          items.map(function (it, idx) {
+            return h("div", { key: idx, style: { padding: "10px 16px", borderBottom: "1px solid #F5F5F5" } },
+              h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 } },
+                h("span", { style: { fontWeight: 700, fontSize: 14, color: "#1A1A2E", wordBreak: "break-all", flex: 1 } }, it.model),
+                it.cat ? h("span", { style: { fontSize: 10, color: "#888", background: "#F0F0F0", borderRadius: 4, padding: "1px 6px", marginLeft: 6, flexShrink: 0 } }, it.cat) : null
+              ),
+              h("div", { style: { display: "flex", flexWrap: "wrap", gap: 10, fontSize: 12 } },
+                it.base ? h("span", null, h("span", { style: { color: "#888" } }, "批價 "), h("span", { style: { fontWeight: 700, color: "#1A237E" } }, it.base)) : null,
+                it.promo ? h("span", null, h("span", { style: { color: "#888" } }, "特促 "), h("span", { style: { fontWeight: 700, color: "#C62828" } }, it.promo)) : null,
+                it.suggest ? h("span", null, h("span", { style: { color: "#888" } }, "建議 "), h("span", { style: { color: "#666" } }, it.suggest)) : null,
+                it.price ? h("span", null, h("span", { style: { color: "#888" } }, "售價 "), h("span", { style: { fontWeight: 700, color: "#2E7D32" } }, it.price)) : null
+              )
+            );
+          })
+        ) : null
+      );
+    })
+  );
+}
+
+// 價格表系統容器（登入後檢視）
+function PriceListSystem() {
+  var identityState = useState(null);
+  var identity = identityState[0], setIdentity = identityState[1];
+
+  if (!identity) {
+    return h(DealerLogin, { onLogin: function (id) { setIdentity(id); }, title: "💲 價格表查詢登入" });
+  }
+  return h("div", null,
+    h("div", { style: { background: "#fff", borderRadius: 12, padding: "12px 16px", marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" } },
+      h("div", null,
+        h("div", { style: { fontSize: 11, color: "#888" } }, "價格表"),
+        h("div", { style: { fontSize: 14, fontWeight: 700, color: "#1A237E" } }, identity.label)
+      ),
+      h("button", { onClick: function () { setIdentity(null); }, style: { padding: "6px 14px", borderRadius: 8, border: "1.5px solid #E0E0E0", background: "#fff", color: "#C62828", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit" } }, "登出")
+    ),
+    h(PriceListView)
+  );
+}
+
+// 管理頁：上傳價格表
+function PriceListUpload() {
+  var msgState = useState("");
+  var msg = msgState[0], setMsg = msgState[1];
+  var busyState = useState(false);
+  var busy = busyState[0], setBusy = busyState[1];
+  var titleState = useState("");
+  var title = titleState[0], setTitle = titleState[1];
+  var fileRef = useRef();
+
+  function onFile(e) {
+    var file = e.target.files[0];
+    if (!file) return;
+    setBusy(true); setMsg("");
+    var reader = new FileReader();
+    reader.onload = function (evt) {
+      try {
+        var wb = XLSX.read(evt.target.result, { type: "binary" });
+        var sheets = parsePriceWorkbook(wb);
+        if (!sheets.length) { setMsg("❌ 找不到有效的價格資料（需有『機型』標題列）"); setBusy(false); return; }
+        var now = new Date().toLocaleString("zh-TW", { hour12: false });
+        var totalItems = sheets.reduce(function (s, sh) { return s + sh.items.length; }, 0);
+        PRICE_COL.doc("current").set({ title: title || file.name.replace(/\.(xlsx|xls|xlsm)$/i, ""), sheets: sheets, updatedAt: now }).then(function () {
+          setMsg("✅ 已上傳價格表（" + sheets.length + " 個分類，共 " + totalItems + " 項）");
+          setBusy(false);
+        }).catch(function () { setMsg("❌ 上傳失敗，請確認 Firestore 規則已加 priceList"); setBusy(false); });
+      } catch (err) {
+        console.error(err);
+        setMsg("❌ 解析失敗，請確認 Excel 格式");
+        setBusy(false);
+      }
+    };
+    reader.readAsBinaryString(file);
+    e.target.value = "";
+  }
+
+  return h("div", { style: { background: "#fff", borderRadius: 14, padding: 20, boxShadow: "0 1px 6px rgba(0,0,0,0.07)" } },
+    h("div", { style: { fontWeight: 800, fontSize: 16, color: "#1A237E", marginBottom: 4 } }, "💲 上傳價格表"),
+    h("div", { style: { fontSize: 12, color: "#888", marginBottom: 14, lineHeight: 1.6 } }, "上傳每月價格表 Excel（多分頁）。上傳後經銷商與業務登入「價格表」分頁即可查詢。"),
+    h("input", {
+      value: title, onChange: function (e) { setTitle(e.target.value); },
+      placeholder: "價格表標題（例如 2026年7月價格表，可留空）",
+      style: { width: "100%", boxSizing: "border-box", padding: "10px 12px", marginBottom: 12, borderRadius: 8, border: "1.5px solid #E0E0E0", fontSize: 14, outline: "none", fontFamily: "inherit" }
+    }),
+    h("button", {
+      onClick: function () { if (fileRef.current) fileRef.current.click(); },
+      disabled: busy,
+      style: { width: "100%", padding: "14px", borderRadius: 10, border: "2px dashed #3949AB", background: busy ? "#F5F5F5" : "#EEF0FB", color: "#3949AB", fontWeight: 700, fontSize: 14, cursor: busy ? "not-allowed" : "pointer", fontFamily: "inherit" }
+    }, busy ? "⏳ 解析並上傳中…" : "📁 選擇價格表 Excel 上傳"),
+    h("input", { ref: fileRef, type: "file", accept: ".xlsx,.xls,.xlsm", onChange: onFile, style: { display: "none" } }),
+    msg ? h("div", { style: { marginTop: 12, padding: "10px 14px", borderRadius: 8, fontSize: 13, fontWeight: 600, background: msg.indexOf("✅") === 0 ? "#E8F5E9" : "#FFEBEE", color: msg.indexOf("✅") === 0 ? "#2E7D32" : "#C62828" } }, msg) : null
+  );
+}
+
+
 // 管理頁：上傳寄倉 Excel 並指定經銷商
 function ConsignmentUpload() {
   var searchState = useState("");
@@ -1267,7 +1475,7 @@ function InventoryApp() {
   var categoryFilterState = useState("全部");
   var categoryFilter = categoryFilterState[0], setCategoryFilter = categoryFilterState[1];
 
-  var tabState = useState("寄倉");
+  var tabState = useState("價格");
   var tab = tabState[0], setTab = tabState[1];
 
   var uploadMsgState = useState("");
@@ -1495,7 +1703,7 @@ function InventoryApp() {
       )
     ),
     h("div", { style: { display: "flex", gap: 4, marginTop: 16 } },
-      [{ key: "寄倉", label: "寄倉表" }, { key: "經銷商", label: "經銷商店庫資料表" }, { key: "管理", label: "管理" }].map(function (t) {
+      [{ key: "價格", label: "價格表" }, { key: "寄倉", label: "寄倉表" }, { key: "經銷商", label: "經銷商店庫資料表" }, { key: "管理", label: "管理" }].map(function (t) {
         return h("button", {
           key: t.key,
           onClick: function () { setTab(t.key); },
@@ -1649,6 +1857,7 @@ function InventoryApp() {
           }
         }, uploadMsg) : null
       ),
+      h(PriceListUpload),
       h(ConsignmentUpload),
       h(AdjustPanel, { data: data, onApply: handleAdjust }),
       h(AdjustedList, { data: data, onApply: handleAdjust }),
@@ -1679,8 +1888,15 @@ function InventoryApp() {
     consignContent = h(ConsignmentSystem);
   }
 
+  // ── 價格表分頁內容 ──
+  var priceContent = null;
+  if (tab === "價格") {
+    priceContent = h(PriceListSystem);
+  }
+
   var bodyContent;
-  if (tab === "寄倉") bodyContent = consignContent;
+  if (tab === "價格") bodyContent = priceContent;
+  else if (tab === "寄倉") bodyContent = consignContent;
   else if (tab === "經銷商") bodyContent = dealerContent;
   else if (tab === "管理") bodyContent = manageContent;
   else bodyContent = queryContent;
