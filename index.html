@@ -848,28 +848,16 @@ function parsePriceWorkbook(wb) {
     }
     var cModel = findCol(["機型"]);
     var cCat = findCol(["產品別"]);
-    var cBase = findCol(["批價"]);
-    var cPromo = findCol(["本月特促", "特促"]);
-    var cSuggest = findCol(["建議售價", "建議"]);
-    // 售價：精確等於「售價」
-    var cPrice = -1;
-    for (var i2 = 0; i2 < header.length; i2++) { if (header[i2] === "售價") { cPrice = i2; break; } }
 
-    // 額外規格欄位：找出這個分頁定義的欄位對應的 index + 顯示標題
-    var specDefs = [];
-    var wanted = PRICE_SPEC_FIELDS[sheetName];
-    if (wanted) {
-      wanted.forEach(function (key) {
-        for (var ci = 0; ci < header.length; ci++) {
-          if (ci === cModel || ci === cCat || ci === cBase || ci === cPromo || ci === cSuggest || ci === cPrice) continue;
-          if (header[ci].indexOf(key) !== -1) {
-            // 避免重複抓同一欄
-            var dup = specDefs.some(function (s) { return s.col === ci; });
-            if (!dup) specDefs.push({ col: ci, label: headerRaw[ci] || key });
-            break;
-          }
-        }
-      });
+    // 找出最後一個有標題的欄位，決定表格寬度
+    var lastCol = 0;
+    for (var i2 = 0; i2 < headerRaw.length; i2++) {
+      if (headerRaw[i2] && headerRaw[i2] !== "nan") lastCol = i2;
+    }
+    // 建立欄位標題陣列（保留所有欄，空標題補上「欄N」）
+    var columns = [];
+    for (var c = 0; c <= lastCol; c++) {
+      columns.push(headerRaw[c] && headerRaw[c] !== "nan" ? headerRaw[c] : "");
     }
 
     var items = [];
@@ -880,23 +868,18 @@ function parsePriceWorkbook(wb) {
       if (!model) continue;
       var cat = cCat >= 0 ? String(row[cCat] || "").replace(/\n/g, "").trim() : "";
       if (cat) curCat = cat;
-      function val(ci) { return ci >= 0 ? String(row[ci] || "").replace(/\n/g, " ").trim() : ""; }
-      var specs = [];
-      specDefs.forEach(function (sd) {
-        var v = String(row[sd.col] || "").replace(/\n/g, " ").trim();
-        if (v) specs.push({ label: sd.label, value: v });
-      });
+      // 整列所有欄位的值
+      var cells = [];
+      for (var c2 = 0; c2 <= lastCol; c2++) {
+        cells.push(String(row[c2] === undefined || row[c2] === null ? "" : row[c2]).replace(/\n/g, " ").trim());
+      }
       items.push({
-        cat: curCat,
         model: model,
-        base: val(cBase),
-        promo: val(cPromo),
-        suggest: val(cSuggest),
-        price: val(cPrice),
-        specs: specs
+        cat: curCat,
+        cells: cells
       });
     }
-    if (items.length > 0) sheets.push({ name: sheetName, items: items });
+    if (items.length > 0) sheets.push({ name: sheetName, columns: columns, modelCol: cModel, items: items });
   });
   return sheets;
 }
@@ -964,43 +947,36 @@ function PriceListView() {
           h("span", { style: { fontWeight: 700, fontSize: 15, color: "#1A237E" } }, sheet.name),
           h("span", { style: { fontSize: 12, color: "#888" } }, items.length + " 項" + (q ? "" : (isOpen ? " ▲" : " ▼")))
         ),
-        showItems ? h("div", { style: { borderTop: "1px solid #F0F0F0" } },
-          items.map(function (it, idx) {
-            var modelKey = it.model.split(/[\s(（]/)[0];  // 取型號主體(去掉附註)
-            var searchUrl = "https://www.google.com/search?tbm=isch&q=" + encodeURIComponent("SAMPO 聲寶 " + modelKey);
-            return h("div", { key: idx, style: { padding: "10px 16px", borderBottom: "1px solid #F5F5F5" } },
-              h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 } },
-                h("span", { style: { fontWeight: 700, fontSize: 14, color: "#1A1A2E", wordBreak: "break-all", flex: 1 } }, it.model),
-                h("a", { href: searchUrl, target: "_blank", rel: "noopener noreferrer",
-                  style: { fontSize: 11, color: "#3949AB", background: "#EEF0FB", borderRadius: 6, padding: "3px 8px", marginLeft: 6, flexShrink: 0, textDecoration: "none", fontWeight: 700, whiteSpace: "nowrap" } }, "🔍 找圖"),
-                it.cat ? h("span", { style: { fontSize: 10, color: "#888", background: "#F0F0F0", borderRadius: 4, padding: "1px 6px", marginLeft: 6, flexShrink: 0 } }, it.cat) : null
-              ),
-              h("div", { style: { display: "flex", flexWrap: "wrap", gap: 10, fontSize: 12 } },
-                it.base ? h("span", null, h("span", { style: { color: "#888" } }, "批價 "), h("span", { style: { fontWeight: 700, color: "#1A237E" } }, it.base)) : null,
-                it.promo ? h("span", null, h("span", { style: { color: "#888" } }, "特促 "), h("span", { style: { fontWeight: 700, color: "#C62828" } }, it.promo)) : null,
-                it.suggest ? h("span", null, h("span", { style: { color: "#888" } }, "建議 "), h("span", { style: { color: "#666" } }, it.suggest)) : null,
-                it.price ? h("span", null, h("span", { style: { color: "#888" } }, "售價 "), h("span", { style: { fontWeight: 700, color: "#2E7D32" } }, it.price)) : null
-              ),
-              (it.specs && it.specs.length) ? (function () {
-                var specKey = sheet.name + "-" + idx;
-                var specOpen = !!openSpecs[specKey];
-                return h("div", { style: { marginTop: 6, paddingTop: 6, borderTop: "1px dashed #EEE" } },
-                  h("div", {
-                    onClick: function () { toggleSpec(specKey); },
-                    style: { fontSize: 11, color: "#3949AB", fontWeight: 700, cursor: "pointer", display: "inline-block" }
-                  }, "規格 (" + it.specs.length + ") " + (specOpen ? "▲" : "▼")),
-                  specOpen ? h("div", { style: { marginTop: 4, display: "flex", flexDirection: "column", gap: 3 } },
-                    it.specs.map(function (sp, si) {
-                      return h("div", { key: si, style: { display: "flex", fontSize: 11, lineHeight: 1.5 } },
-                        h("span", { style: { color: "#999", flexShrink: 0, minWidth: 72, marginRight: 6 } }, sp.label),
-                        h("span", { style: { color: "#555", flex: 1, wordBreak: "break-all" } }, sp.value)
-                      );
-                    })
-                  ) : null
+        showItems ? h("div", { style: { borderTop: "1px solid #F0F0F0", overflowX: "auto", WebkitOverflowScrolling: "touch" } },
+          h("table", { style: { borderCollapse: "collapse", fontSize: 12, whiteSpace: "nowrap", minWidth: "100%" } },
+            h("thead", null,
+              h("tr", { style: { background: "#F8F9FF" } },
+                sheet.columns.map(function (col, ci) {
+                  if (!col) return null;
+                  return h("th", { key: ci, style: { padding: "8px 10px", textAlign: "left", fontWeight: 700, color: "#1A237E", borderBottom: "2px solid #E0E0E0", borderRight: "1px solid #F0F0F0", position: ci === sheet.modelCol ? "sticky" : "static", left: ci === sheet.modelCol ? 0 : "auto", background: "#F8F9FF", zIndex: ci === sheet.modelCol ? 1 : "auto" } }, col);
+                }),
+                h("th", { style: { padding: "8px 10px", borderBottom: "2px solid #E0E0E0" } }, "圖片")
+              )
+            ),
+            h("tbody", null,
+              items.map(function (it, idx) {
+                var modelKey = it.model.split(/[\s(（]/)[0];
+                var searchUrl = "https://www.google.com/search?tbm=isch&q=" + encodeURIComponent("SAMPO 聲寶 " + modelKey);
+                return h("tr", { key: idx, style: { borderBottom: "1px solid #F5F5F5" } },
+                  sheet.columns.map(function (col, ci) {
+                    if (!col) return null;
+                    var cellVal = it.cells[ci] || "";
+                    var isModel = ci === sheet.modelCol;
+                    return h("td", { key: ci, style: { padding: "8px 10px", borderRight: "1px solid #F5F5F5", color: isModel ? "#1A1A2E" : "#555", fontWeight: isModel ? 700 : 400, position: isModel ? "sticky" : "static", left: isModel ? 0 : "auto", background: "#fff", zIndex: isModel ? 1 : "auto" } }, cellVal);
+                  }),
+                  h("td", { style: { padding: "8px 10px", textAlign: "center" } },
+                    h("a", { href: searchUrl, target: "_blank", rel: "noopener noreferrer",
+                      style: { fontSize: 11, color: "#3949AB", background: "#EEF0FB", borderRadius: 6, padding: "3px 8px", textDecoration: "none", fontWeight: 700, whiteSpace: "nowrap" } }, "🔍 找圖")
+                  )
                 );
-              })() : null
-            );
-          })
+              })
+            )
+          )
         ) : null
       );
     })
