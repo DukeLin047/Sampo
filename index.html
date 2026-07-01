@@ -815,6 +815,15 @@ function ConsignmentView(props) {
 var PRICE_COL = db.collection("priceList");
 
 // 解析價格表 Excel（多分頁，每頁欄位位置不同，用標題比對）
+// 各分頁要額外顯示在機型下方的規格欄位（用標題文字比對）
+var PRICE_SPEC_FIELDS = {
+  "影音商品": ["尺寸(mm)", "備註", "4K / 2K", "面板", "AI", "AirPlay 2", "刷新率", "聲音", "雙杜比", "雙動態", "雙娛樂", "藍芽", "Wifi", "HDMI", "USB", "台製"],
+  "冰箱": ["機體尺寸", "能效", "節能", "環保", "MIT", "容量", "顏色"],
+  "洗衣機": ["尺寸(mm)", "公斤帶", "含宅安", "智慧", "變頻", "PICO", "超震波", "省水", "節能", "環保", "MIT", "產地"],
+  "冷凍櫃": ["尺寸(mm)", "說明", "節能", "容量", "顏色"],
+  "除濕機": ["尺寸(mm)", "功能"]
+};
+
 function parsePriceWorkbook(wb) {
   var sheets = [];
   wb.SheetNames.forEach(function (sheetName) {
@@ -827,6 +836,7 @@ function parsePriceWorkbook(wb) {
       if (rowJoined.indexOf("機型") !== -1) { hr = r; break; }
     }
     if (hr === -1) return;
+    var headerRaw = rows[hr].map(function (x) { return String(x).replace(/\n/g, " ").trim(); });
     var header = rows[hr].map(function (x) { return String(x).replace(/\n/g, ""); });
     function findCol(names) {
       for (var i = 0; i < header.length; i++) {
@@ -845,6 +855,23 @@ function parsePriceWorkbook(wb) {
     var cPrice = -1;
     for (var i2 = 0; i2 < header.length; i2++) { if (header[i2] === "售價") { cPrice = i2; break; } }
 
+    // 額外規格欄位：找出這個分頁定義的欄位對應的 index + 顯示標題
+    var specDefs = [];
+    var wanted = PRICE_SPEC_FIELDS[sheetName];
+    if (wanted) {
+      wanted.forEach(function (key) {
+        for (var ci = 0; ci < header.length; ci++) {
+          if (ci === cModel || ci === cCat || ci === cBase || ci === cPromo || ci === cSuggest || ci === cPrice) continue;
+          if (header[ci].indexOf(key) !== -1) {
+            // 避免重複抓同一欄
+            var dup = specDefs.some(function (s) { return s.col === ci; });
+            if (!dup) specDefs.push({ col: ci, label: headerRaw[ci] || key });
+            break;
+          }
+        }
+      });
+    }
+
     var items = [];
     var curCat = "";
     for (var r2 = hr + 1; r2 < rows.length; r2++) {
@@ -854,13 +881,19 @@ function parsePriceWorkbook(wb) {
       var cat = cCat >= 0 ? String(row[cCat] || "").replace(/\n/g, "").trim() : "";
       if (cat) curCat = cat;
       function val(ci) { return ci >= 0 ? String(row[ci] || "").replace(/\n/g, " ").trim() : ""; }
+      var specs = [];
+      specDefs.forEach(function (sd) {
+        var v = String(row[sd.col] || "").replace(/\n/g, " ").trim();
+        if (v) specs.push({ label: sd.label, value: v });
+      });
       items.push({
         cat: curCat,
         model: model,
         base: val(cBase),
         promo: val(cPromo),
         suggest: val(cSuggest),
-        price: val(cPrice)
+        price: val(cPrice),
+        specs: specs
       });
     }
     if (items.length > 0) sheets.push({ name: sheetName, items: items });
@@ -935,7 +968,15 @@ function PriceListView() {
                 it.promo ? h("span", null, h("span", { style: { color: "#888" } }, "特促 "), h("span", { style: { fontWeight: 700, color: "#C62828" } }, it.promo)) : null,
                 it.suggest ? h("span", null, h("span", { style: { color: "#888" } }, "建議 "), h("span", { style: { color: "#666" } }, it.suggest)) : null,
                 it.price ? h("span", null, h("span", { style: { color: "#888" } }, "售價 "), h("span", { style: { fontWeight: 700, color: "#2E7D32" } }, it.price)) : null
-              )
+              ),
+              (it.specs && it.specs.length) ? h("div", { style: { marginTop: 6, paddingTop: 6, borderTop: "1px dashed #EEE", display: "flex", flexDirection: "column", gap: 3 } },
+                it.specs.map(function (sp, si) {
+                  return h("div", { key: si, style: { display: "flex", fontSize: 11, lineHeight: 1.5 } },
+                    h("span", { style: { color: "#999", flexShrink: 0, minWidth: 72, marginRight: 6 } }, sp.label),
+                    h("span", { style: { color: "#555", flex: 1, wordBreak: "break-all" } }, sp.value)
+                  );
+                })
+              ) : null
             );
           })
         ) : null
