@@ -14,6 +14,13 @@
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { background: #F2F4F8; font-family: 'PingFang TC','Noto Sans TC','Microsoft JhengHei',sans-serif; }
   #error-box { display:none; padding:20px; color:#C62828; font-size:14px; white-space:pre-wrap; }
+  /* 響應式容器：手機窄、電腦寬 */
+  .app-container { width: 100%; max-width: 480px; margin: 0 auto; }
+  @media (min-width: 768px) {
+    .app-container { max-width: 900px; }
+    /* 電腦版：型號/機型清單改兩欄 */
+    .resp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: start; }
+  }
 </style>
 </head>
 <body>
@@ -962,13 +969,13 @@ function PriceListView() {
           h("span", { style: { fontWeight: 700, fontSize: 15, color: "#1A237E" } }, sheet.name),
           h("span", { style: { fontSize: 12, color: "#888" } }, items.length + " 項" + (q ? "" : (isOpen ? " ▲" : " ▼")))
         ),
-        showItems ? h("div", { style: { borderTop: "1px solid #F0F0F0" } },
+        showItems ? h("div", { className: "resp-grid", style: { borderTop: "1px solid #F0F0F0", padding: "4px" } },
           items.map(function (it, idx) {
             var modelKey = it.model.split(/[\s(（]/)[0];
             var searchUrl = "https://www.google.com/search?tbm=isch&q=" + encodeURIComponent("SAMPO 聲寶 " + modelKey);
             var specKey = sheet.name + "-" + idx;
             var specOpen = !!openSpecs[specKey];
-            return h("div", { key: idx, style: { padding: "10px 16px", borderBottom: "1px solid #F5F5F5" } },
+            return h("div", { key: idx, style: { padding: "10px 12px", borderBottom: "1px solid #F5F5F5", borderRadius: 8, background: "#fff" } },
               h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 } },
                 h("span", { style: { fontWeight: 700, fontSize: 14, color: "#1A1A2E", wordBreak: "break-all", flex: 1 } }, it.model),
                 h("a", { href: searchUrl, target: "_blank", rel: "noopener noreferrer",
@@ -1962,7 +1969,7 @@ function InventoryApp() {
 
   var needLoading = (tab === "管理") && loading;
 
-  return h("div", { style: { minHeight: "100vh", background: "#F2F4F8", maxWidth: 480, margin: "0 auto" } },
+  return h("div", { className: "app-container", style: { minHeight: "100vh", background: "#F2F4F8" } },
     header,
     h("div", { style: { padding: "16px 16px 40px" } },
       needLoading ? h("div", { style: { textAlign: "center", padding: "60px 20px", color: "#AAAAAA" } }, "載入中…") : bodyContent
