@@ -1541,8 +1541,30 @@ function InventoryApp() {
   var categoryFilterState = useState("全部");
   var categoryFilter = categoryFilterState[0], setCategoryFilter = categoryFilterState[1];
 
-  var tabState = useState("價格");
+  var unlockedState = useState(function () {
+    try { return localStorage.getItem("sampo_unlocked") === "1"; } catch (e) { return false; }
+  });
+  var unlocked = unlockedState[0], setUnlocked = unlockedState[1];
+  var tabState = useState(unlocked ? "價格" : "管理");
   var tab = tabState[0], setTab = tabState[1];
+
+  function doUnlock() {
+    var pw = prompt("請輸入解鎖密碼");
+    if (pw === null) return;
+    if (pw.trim() === "sampo1313") {
+      setUnlocked(true);
+      try { localStorage.setItem("sampo_unlocked", "1"); } catch (e) {}
+      setTab("價格");
+    } else {
+      alert("密碼錯誤");
+    }
+  }
+
+  function doLock() {
+    setUnlocked(false);
+    try { localStorage.removeItem("sampo_unlocked"); } catch (e) {}
+    setTab("管理");
+  }
 
   var uploadMsgState = useState("");
   var uploadMsg = uploadMsgState[0], setUploadMsg = uploadMsgState[1];
@@ -1768,8 +1790,11 @@ function InventoryApp() {
         }, "↻")
       )
     ),
-    h("div", { style: { display: "flex", gap: 4, marginTop: 16 } },
-      [{ key: "價格", label: "價格表" }, { key: "寄倉", label: "寄倉表" }, { key: "經銷商", label: "經銷商店庫資料表" }, { key: "管理", label: "管理" }].map(function (t) {
+    h("div", { style: { display: "flex", gap: 4, marginTop: 16, alignItems: "center" } },
+      (unlocked
+        ? [{ key: "價格", label: "價格表" }, { key: "寄倉", label: "寄倉表" }, { key: "經銷商", label: "經銷商店庫資料表" }, { key: "管理", label: "管理" }]
+        : [{ key: "管理", label: "管理" }]
+      ).map(function (t) {
         return h("button", {
           key: t.key,
           onClick: function () { setTab(t.key); },
@@ -1781,7 +1806,10 @@ function InventoryApp() {
             transition: "all 0.2s"
           }
         }, t.label);
-      })
+      }),
+      unlocked
+        ? h("button", { onClick: doLock, style: { marginLeft: "auto", padding: "6px 10px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.3)", background: "transparent", color: "rgba(255,255,255,0.8)", fontWeight: 700, fontSize: 11, cursor: "pointer", fontFamily: "inherit" } }, "🔒 鎖定")
+        : h("button", { onClick: doUnlock, style: { marginLeft: "auto", padding: "6px 10px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.15)", color: "#fff", fontWeight: 700, fontSize: 11, cursor: "pointer", fontFamily: "inherit" } }, "🔓 解鎖")
     )
   );
 
@@ -1961,13 +1989,14 @@ function InventoryApp() {
   }
 
   var bodyContent;
-  if (tab === "價格") bodyContent = priceContent;
-  else if (tab === "寄倉") bodyContent = consignContent;
-  else if (tab === "經銷商") bodyContent = dealerContent;
-  else if (tab === "管理") bodyContent = manageContent;
+  var effTab = (!unlocked && tab !== "管理") ? "管理" : tab;
+  if (effTab === "價格") bodyContent = priceContent;
+  else if (effTab === "寄倉") bodyContent = consignContent;
+  else if (effTab === "經銷商") bodyContent = dealerContent;
+  else if (effTab === "管理") bodyContent = manageContent;
   else bodyContent = queryContent;
 
-  var needLoading = (tab === "管理") && loading;
+  var needLoading = (effTab === "管理") && loading;
 
   return h("div", { className: "app-container", style: { minHeight: "100vh", background: "#F2F4F8" } },
     header,
