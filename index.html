@@ -1527,6 +1527,93 @@ function ConsignmentSystem() {
 }
 
 
+
+// ============ LINE 群組白名單管理 ============
+var GROUP_WHITELIST_COL = db.collection("allowedGroups");
+
+function GroupWhitelistManager() {
+  var listState = useState(null);
+  var list = listState[0], setList = listState[1];
+  var nameState = useState("");
+  var name = nameState[0], setName = nameState[1];
+  var idState = useState("");
+  var gid = idState[0], setGid = idState[1];
+  var msgState = useState("");
+  var msg = msgState[0], setMsg = msgState[1];
+  var busyState = useState(false);
+  var busy = busyState[0], setBusy = busyState[1];
+
+  function load() {
+    GROUP_WHITELIST_COL.get().then(function (snap) {
+      var arr = [];
+      snap.forEach(function (doc) { arr.push(Object.assign({ id: doc.id }, doc.data())); });
+      arr.sort(function (a, b) { return (a.name || "").localeCompare(b.name || ""); });
+      setList(arr);
+    }).catch(function () { setList([]); });
+  }
+
+  useEffect(function () { load(); }, []);
+
+  function addGroup() {
+    var idClean = gid.trim();
+    var nameClean = name.trim();
+    if (!idClean || !nameClean) { setMsg("請輸入群組名稱和群組 ID"); return; }
+    setBusy(true); setMsg("");
+    var now = new Date().toLocaleString("zh-TW", { hour12: false });
+    GROUP_WHITELIST_COL.doc(idClean).set({ name: nameClean, groupId: idClean, addedAt: now }).then(function () {
+      setBusy(false);
+      setMsg("✅ 已新增「" + nameClean + "」");
+      setName(""); setGid("");
+      load();
+    }).catch(function () { setBusy(false); setMsg("❌ 新增失敗，請確認 Firestore 規則已加 allowedGroups"); });
+  }
+
+  function removeGroup(id) {
+    if (!confirm("確定移除這個群組嗎？移除後該群組的機器人查詢功能會停用，機器人也會在下次被拉進該群組時自動退出。")) return;
+    GROUP_WHITELIST_COL.doc(id).delete().then(function () { load(); });
+  }
+
+  return h("div", { style: { background: "#fff", borderRadius: 14, padding: 20, boxShadow: "0 1px 6px rgba(0,0,0,0.07)" } },
+    h("div", { style: { fontWeight: 800, fontSize: 16, color: "#1A237E", marginBottom: 4 } }, "🔐 LINE 群組白名單"),
+    h("div", { style: { fontSize: 12, color: "#888", marginBottom: 14, lineHeight: 1.6 } },
+      "只有加入白名單的群組，裡面的人才能使用機器人查詢庫存/功能。要取得群組 ID：先把機器人拉進該群組，在群組裡打「groupid」，機器人會回傳該群組的 ID，複製貼到下方。非白名單群組會被機器人自動退出。"
+    ),
+    h("input", {
+      value: name, onChange: function (e) { setName(e.target.value); },
+      placeholder: "群組名稱（例如：南屯經銷商群）",
+      style: { width: "100%", boxSizing: "border-box", padding: "10px 12px", marginBottom: 10, borderRadius: 8, border: "1.5px solid #E0E0E0", fontSize: 14, outline: "none", fontFamily: "inherit" }
+    }),
+    h("input", {
+      value: gid, onChange: function (e) { setGid(e.target.value); },
+      placeholder: "群組 ID（在群組裡打 groupid 取得）",
+      style: { width: "100%", boxSizing: "border-box", padding: "10px 12px", marginBottom: 10, borderRadius: 8, border: "1.5px solid #E0E0E0", fontSize: 14, outline: "none", fontFamily: "inherit" }
+    }),
+    h("button", {
+      onClick: addGroup, disabled: busy,
+      style: { width: "100%", padding: "12px", borderRadius: 10, border: "none", background: "#1A237E", color: "#fff", fontWeight: 700, fontSize: 14, cursor: busy ? "not-allowed" : "pointer", fontFamily: "inherit" }
+    }, busy ? "新增中…" : "＋ 新增到白名單"),
+    msg ? h("div", { style: { marginTop: 10, fontSize: 12, color: msg.indexOf("✅") === 0 ? "#2E7D32" : "#C62828" } }, msg) : null,
+    h("div", { style: { marginTop: 16 } },
+      list === null
+        ? h("div", { style: { textAlign: "center", color: "#AAA", fontSize: 13 } }, "載入中…")
+        : list.length === 0
+          ? h("div", { style: { textAlign: "center", color: "#AAA", fontSize: 13, padding: "10px 0" } }, "目前沒有白名單群組")
+          : list.map(function (g) {
+              return h("div", { key: g.id, style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", background: "#F8F9FF", borderRadius: 8, marginBottom: 8 } },
+                h("div", null,
+                  h("div", { style: { fontSize: 13, fontWeight: 700, color: "#1A237E" } }, g.name),
+                  h("div", { style: { fontSize: 11, color: "#888", marginTop: 2, wordBreak: "break-all" } }, g.groupId)
+                ),
+                h("button", {
+                  onClick: function () { removeGroup(g.id); },
+                  style: { fontSize: 11, color: "#C62828", border: "1px solid #FFCDD2", background: "#fff", borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontFamily: "inherit", flexShrink: 0, marginLeft: 8 }
+                }, "移除")
+              );
+            })
+    )
+  );
+}
+
 function InventoryApp() {
   var dataState = useState([]);
   var data = dataState[0], setData = dataState[1];
@@ -1945,6 +2032,7 @@ function InventoryApp() {
       ),
       h(PriceListUpload),
       h(ConsignmentUpload),
+      h(GroupWhitelistManager),
       h(AdjustPanel, { data: data, onApply: handleAdjust }),
       h(AdjustedList, { data: data, onApply: handleAdjust }),
       h("div", { style: { background: "#fff", borderRadius: 14, padding: 20, boxShadow: "0 1px 6px rgba(0,0,0,0.07)" } },
