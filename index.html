@@ -1884,10 +1884,13 @@ function InventoryApp() {
       for (var i = 0; i < PREFIX_RULES.length; i++) {
         if (PREFIX_RULES[i].category === cat) { rule = PREFIX_RULES[i]; break; }
       }
+      var ruleText = rule
+        ? rule.prefixes.map(function (p) { return p.indexOf("-") !== -1 ? p : p + "-"; }).join(" / ") + " 開頭"
+        : "其餘不符合以上規則的型號";
       return h("div", { key: cat, style: { display: "flex", alignItems: "center", gap: 10 } },
         h("span", { style: { width: 10, height: 10, borderRadius: "50%", background: c.dot, flexShrink: 0 } }),
         h("span", { style: { fontSize: 13, fontWeight: 700, color: "#333", width: 78 } }, cat),
-        h("span", { style: { fontSize: 12, color: "#888", fontFamily: "monospace" } }, rule.prefixes.map(function (p) { return p.indexOf("-") !== -1 ? p : p + "-"; }).join(" / ") + " 開頭")
+        h("span", { style: { fontSize: 12, color: "#888", fontFamily: "monospace" } }, ruleText)
       );
     });
 
