@@ -1541,30 +1541,8 @@ function InventoryApp() {
   var categoryFilterState = useState("全部");
   var categoryFilter = categoryFilterState[0], setCategoryFilter = categoryFilterState[1];
 
-  var unlockedState = useState(function () {
-    try { return localStorage.getItem("sampo_unlocked") === "1"; } catch (e) { return false; }
-  });
-  var unlocked = unlockedState[0], setUnlocked = unlockedState[1];
-  var tabState = useState(unlocked ? "價格" : "管理");
+  var tabState = useState("管理");
   var tab = tabState[0], setTab = tabState[1];
-
-  function doUnlock() {
-    var pw = prompt("請輸入解鎖密碼");
-    if (pw === null) return;
-    if (pw.trim() === "sampo1313") {
-      setUnlocked(true);
-      try { localStorage.setItem("sampo_unlocked", "1"); } catch (e) {}
-      setTab("價格");
-    } else {
-      alert("密碼錯誤");
-    }
-  }
-
-  function doLock() {
-    setUnlocked(false);
-    try { localStorage.removeItem("sampo_unlocked"); } catch (e) {}
-    setTab("管理");
-  }
 
   var uploadMsgState = useState("");
   var uploadMsg = uploadMsgState[0], setUploadMsg = uploadMsgState[1];
@@ -1697,6 +1675,21 @@ function InventoryApp() {
           matched[model].stock += qty;
         }
 
+        // 補上完整型號清單（DEALER_PRODUCTS）中本次 SAP 沒出現的型號，庫存設為 0
+        // 每次上傳都重新套用整份清單：本次 SAP 沒有的型號一律視為 0（不覆蓋本次 SAP 有的資料）
+        var allKnownModels = [];
+        Object.keys(DEALER_PRODUCTS).forEach(function (cat) {
+          DEALER_PRODUCTS[cat].forEach(function (m) {
+            if (allKnownModels.indexOf(m) === -1) allKnownModels.push(m);
+          });
+        });
+        allKnownModels.forEach(function (m) {
+          if (matched[m]) return; // 本次 SAP 已有資料，不覆蓋
+          var cat = getCategory(m);
+          if (!cat) return; // 無法自動歸類的型號（例如乾衣機、AU/AM 合併寫法）跳過，不補
+          matched[m] = { model: m, category: cat, baseStock: 0, adjustment: 0, stock: 0, threshold: DEFAULT_THRESHOLD[cat] || 5 };
+        });
+
         var items = Object.keys(matched).map(function (k) { return matched[k]; });
         items.sort(function (a, b) {
           if (a.category === b.category) return a.model.localeCompare(b.model);
@@ -1790,11 +1783,8 @@ function InventoryApp() {
         }, "↻")
       )
     ),
-    h("div", { style: { display: "flex", gap: 4, marginTop: 16, alignItems: "center" } },
-      (unlocked
-        ? [{ key: "價格", label: "價格表" }, { key: "寄倉", label: "寄倉表" }, { key: "經銷商", label: "經銷商店庫資料表" }, { key: "管理", label: "管理" }]
-        : [{ key: "管理", label: "管理" }]
-      ).map(function (t) {
+    h("div", { style: { display: "flex", gap: 4, marginTop: 16 } },
+      [{ key: "管理", label: "管理" }].map(function (t) {
         return h("button", {
           key: t.key,
           onClick: function () { setTab(t.key); },
@@ -1806,10 +1796,7 @@ function InventoryApp() {
             transition: "all 0.2s"
           }
         }, t.label);
-      }),
-      unlocked
-        ? h("button", { onClick: doLock, style: { marginLeft: "auto", padding: "6px 10px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.3)", background: "transparent", color: "rgba(255,255,255,0.8)", fontWeight: 700, fontSize: 11, cursor: "pointer", fontFamily: "inherit" } }, "🔒 鎖定")
-        : h("button", { onClick: doUnlock, style: { marginLeft: "auto", padding: "6px 10px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.15)", color: "#fff", fontWeight: 700, fontSize: 11, cursor: "pointer", fontFamily: "inherit" } }, "🔓 解鎖")
+      })
     )
   );
 
@@ -1929,7 +1916,7 @@ function InventoryApp() {
       h("div", { style: { background: "#fff", borderRadius: 14, padding: 20, boxShadow: "0 1px 6px rgba(0,0,0,0.07)" } },
         h("div", { style: { fontWeight: 800, fontSize: 16, color: "#1A237E", marginBottom: 4 } }, "📤 上傳 SAP 庫存表"),
         h("div", { style: { fontSize: 12, color: "#888", marginBottom: 16, lineHeight: 1.6 } },
-          "直接上傳 SAP 匯出的庫存表（.xlsx/.xlsm）。系統會自動從「庫存原始檔」工作表中，篩選儲存地點 " + TARGET_LOCATION + " 且符合五大分類的型號，更新後經銷商重新整理頁面即可看到。"
+          "直接上傳 SAP 匯出的庫存表（.xlsx/.xlsm）。系統會自動從「庫存原始檔」工作表中，篩選儲存地點 " + TARGET_LOCATION + " 且符合五大分類的型號，更新後經銷商重新整理頁面即可看到。未出現在本次 SAP 匯出但屬於經銷商型號清單的品項，會自動補上庫存 0。"
         ),
         h("button", {
           onClick: function () { if (fileRef.current) fileRef.current.click(); },
@@ -1989,14 +1976,13 @@ function InventoryApp() {
   }
 
   var bodyContent;
-  var effTab = (!unlocked && tab !== "管理") ? "管理" : tab;
-  if (effTab === "價格") bodyContent = priceContent;
-  else if (effTab === "寄倉") bodyContent = consignContent;
-  else if (effTab === "經銷商") bodyContent = dealerContent;
-  else if (effTab === "管理") bodyContent = manageContent;
+  if (tab === "價格") bodyContent = priceContent;
+  else if (tab === "寄倉") bodyContent = consignContent;
+  else if (tab === "經銷商") bodyContent = dealerContent;
+  else if (tab === "管理") bodyContent = manageContent;
   else bodyContent = queryContent;
 
-  var needLoading = (effTab === "管理") && loading;
+  var needLoading = (tab === "管理") && loading;
 
   return h("div", { className: "app-container", style: { minHeight: "100vh", background: "#F2F4F8" } },
     header,
