@@ -877,6 +877,14 @@ function parsePriceWorkbook(wb) {
           }
         }
       });
+    } else {
+      // 沒有預先定義規格欄位的分頁（例如冷氣）：
+      // 把除了機型/產品別/批價/特促/建議售價/售價 以外、且有標題文字的欄位都自動當作規格
+      for (var ciAuto = 0; ciAuto < header.length; ciAuto++) {
+        if (ciAuto === cModel || ciAuto === cCat || ciAuto === cBase || ciAuto === cPromo || ciAuto === cSuggest || ciAuto === cPrice) continue;
+        if (!headerRaw[ciAuto]) continue;
+        specDefs.push({ col: ciAuto, label: headerRaw[ciAuto] });
+      }
     }
 
     var items = [];
@@ -1029,6 +1037,63 @@ function PriceListSystem() {
       h("button", { onClick: function () { setIdentity(null); }, style: { padding: "6px 14px", borderRadius: 8, border: "1.5px solid #E0E0E0", background: "#fff", color: "#C62828", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit" } }, "登出")
     ),
     h(PriceListView)
+  );
+}
+
+// 管理頁：上傳冷氣價格表（獨立按鈕，只更新冷氣分類，不覆蓋其他分類）
+function ACPriceUpload() {
+  var msgState = useState("");
+  var msg = msgState[0], setMsg = msgState[1];
+  var busyState = useState(false);
+  var busy = busyState[0], setBusy = busyState[1];
+  var fileRef = useRef();
+
+  function onFile(e) {
+    var file = e.target.files[0];
+    if (!file) return;
+    setBusy(true); setMsg("");
+    var reader = new FileReader();
+    reader.onload = function (evt) {
+      try {
+        var wb = XLSX.read(evt.target.result, { type: "binary" });
+        var newSheets = parsePriceWorkbook(wb);
+        if (!newSheets.length) { setMsg("❌ 找不到有效的冷氣價格資料（需有『機型』標題列）"); setBusy(false); return; }
+
+        PRICE_COL.doc("current").get().then(function (doc) {
+          var data = doc.exists ? doc.data() : { title: "", sheets: [] };
+          var existingSheets = data.sheets || [];
+          var newNames = newSheets.map(function (s) { return s.name; });
+          var kept = existingSheets.filter(function (s) { return newNames.indexOf(s.name) === -1; });
+          var merged = kept.concat(newSheets);
+          var now = new Date().toLocaleString("zh-TW", { hour12: false });
+          var totalItems = newSheets.reduce(function (s, sh) { return s + sh.items.length; }, 0);
+          PRICE_COL.doc("current").set({ title: data.title || "", sheets: merged, updatedAt: now }).then(function () {
+            setMsg("✅ 已更新冷氣價格表（" + newSheets.length + " 個分類，共 " + totalItems + " 項），其他分類保持不變");
+            setBusy(false);
+          }).catch(function () { setMsg("❌ 上傳失敗，請確認 Firestore 規則已加 priceList"); setBusy(false); });
+        }).catch(function () { setMsg("❌ 讀取現有價格表失敗"); setBusy(false); });
+      } catch (err) {
+        console.error(err);
+        setMsg("❌ 解析失敗，請確認 Excel 格式");
+        setBusy(false);
+      }
+    };
+    reader.readAsBinaryString(file);
+    e.target.value = "";
+  }
+
+  return h("div", { style: { background: "#fff", borderRadius: 14, padding: 20, boxShadow: "0 1px 6px rgba(0,0,0,0.07)" } },
+    h("div", { style: { fontWeight: 800, fontSize: 16, color: "#1A237E", marginBottom: 4 } }, "❄️ 上傳冷氣價格表"),
+    h("div", { style: { fontSize: 12, color: "#888", marginBottom: 14, lineHeight: 1.6 } },
+      "上傳冷氣專用價格表 Excel（需有『機型』標題列）。只會更新冷氣分頁的資料，電視/冰箱/洗衣機等其他分類不受影響。規格欄位會自動抓取 Excel 裡除了機型/批價/售價以外的所有欄位。"
+    ),
+    h("button", {
+      onClick: function () { if (fileRef.current) fileRef.current.click(); },
+      disabled: busy,
+      style: { width: "100%", padding: "14px", borderRadius: 10, border: "2px dashed #1976D2", background: busy ? "#F5F5F5" : "#E3F2FD", color: "#1565C0", fontWeight: 700, fontSize: 14, cursor: busy ? "not-allowed" : "pointer", fontFamily: "inherit" }
+    }, busy ? "⏳ 解析並上傳中…" : "📁 選擇冷氣價格表 Excel 上傳"),
+    h("input", { ref: fileRef, type: "file", accept: ".xlsx,.xls,.xlsm", onChange: onFile, style: { display: "none" } }),
+    msg ? h("div", { style: { marginTop: 12, padding: "10px 14px", borderRadius: 8, fontSize: 13, fontWeight: 600, background: msg.indexOf("✅") === 0 ? "#E8F5E9" : "#FFEBEE", color: msg.indexOf("✅") === 0 ? "#2E7D32" : "#C62828" } }, msg) : null
   );
 }
 
@@ -2031,6 +2096,7 @@ function InventoryApp() {
         }, uploadMsg) : null
       ),
       h(PriceListUpload),
+      h(ACPriceUpload),
       h(ConsignmentUpload),
       h(GroupWhitelistManager),
       h(AdjustPanel, { data: data, onApply: handleAdjust }),
