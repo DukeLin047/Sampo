@@ -880,9 +880,11 @@ function parsePriceWorkbook(wb) {
     } else {
       // 沒有預先定義規格欄位的分頁（例如冷氣）：
       // 把除了機型/產品別/批價/特促/建議售價/售價 以外、且有標題文字的欄位都自動當作規格
+      // 標題含「價」字的欄位（例如同行價、市價）不顯示在功能規格裡
       for (var ciAuto = 0; ciAuto < header.length; ciAuto++) {
         if (ciAuto === cModel || ciAuto === cCat || ciAuto === cBase || ciAuto === cPromo || ciAuto === cSuggest || ciAuto === cPrice) continue;
         if (!headerRaw[ciAuto]) continue;
+        if (headerRaw[ciAuto].indexOf("價") !== -1) continue;
         specDefs.push({ col: ciAuto, label: headerRaw[ciAuto] });
       }
     }
