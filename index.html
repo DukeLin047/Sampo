@@ -845,8 +845,8 @@ function parsePriceWorkbook(wb) {
       if (rowJoined.indexOf("機型") !== -1) { hr = r; break; }
     }
     if (hr === -1) return;
-    var headerRaw = rows[hr].map(function (x) { return String(x).replace(/\n/g, " ").trim(); });
-    var header = rows[hr].map(function (x) { return String(x).replace(/\n/g, ""); });
+    var headerRaw = rows[hr].map(function (x) { return String(x).replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").trim(); });
+    var header = rows[hr].map(function (x) { return String(x).replace(/[\r\n]+/g, ""); });
     function findCol(names) {
       for (var i = 0; i < header.length; i++) {
         for (var n = 0; n < names.length; n++) {
@@ -897,10 +897,10 @@ function parsePriceWorkbook(wb) {
       if (!model) continue;
       var cat = cCat >= 0 ? String(row[cCat] || "").replace(/\n/g, "").trim() : "";
       if (cat) curCat = cat;
-      function val(ci) { return ci >= 0 ? String(row[ci] || "").replace(/\n/g, " ").trim() : ""; }
+      function val(ci) { return ci >= 0 ? String(row[ci] || "").replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").trim() : ""; }
       var specs = [];
       specDefs.forEach(function (sd) {
-        var v = String(row[sd.col] || "").replace(/\n/g, " ").trim();
+        var v = String(row[sd.col] || "").replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").trim();
         if (v) specs.push({ label: sd.label, value: v });
       });
       items.push({
