@@ -69,6 +69,7 @@ var db = firebase.firestore();
 var auth = firebase.auth();
 var DOC_REF = db.collection("inventory").doc("current");
 var ANNOUNCEMENT_ENDPOINT = "https://sendannouncement-r4vahxz6yq-de.a.run.app";
+var UPLOAD_ENDPOINT = "https://uploadannouncementfile-r4vahxz6yq-de.a.run.app";
 
 // ===== 經銷商系統資料 =====
 var DEALER_PRODUCTS = {"電視": ["QM-98MI5200", "STD-MS01", "QM-100SD620", "QM-85SDF620", "QM-65MIW4210", "QM-55MIW4210", "EM-75AIT3200", "EM-65AIT3220", "EM-55AIT3220", "EM-50AIT3220", "EM-43AIT3200", "QM-75SF620", "QM-65SF620", "QM-55SF620", "QM-50SF620", "QM-43SF620", "EM-70RF130", "EM-40HF130", "EM-32HF130", "EM-50GF610", "EM-55GF610", "EM-65GF610", "EM-55GFT610", "EM-65GFT610", "EM-43MDS200", "EM-43FD630", "EM-40CBS200", "EM-32MDS200", "EM-32FD630", "EM-24GF600", "EM-43MDT200", "EM-32MDT200"], "冰箱": ["SR-C05", "SR-C07", "SR-C09G", "SR-C09", "SR-C10(E)", "SR-C10(P)", "SR-C12G", "SR-C14Q(Y9)", "SR-C14Q(R6)", "SR-C48G(Y9)", "SR-C61G(K3)", "SR-C21D(R)", "SR-C25D(G6)", "SR-C25D(Y9)", "SR-M25D", "SR-C37D(K5)", "SR-C48DV(Y1)", "SR-C48D(S1)", "SR-C48D(Y9)", "SR-C53DV(Y7)", "SR-C53D(S9)", "SR-C56DD(Y5)", "SR-C58D(S9)", "SR-C58DV(Y7)", "SR-F61DV(Y7)", "SR-F61D(S2)", "SR-C61D(S9)", "SR-F26D", "SR-C35GD", "SR-C48GDD", "SR-C45GDD", "SR-A46GDV(W6)", "SR-C48GDV(P2)", "SR-C53GDV(Y3)", "SR-C61GDV(Y8)"], "洗衣機": ["KR-UB48F", "ES-1300T", "ES-B07F", "ES-B08F", "ES-B10F", "ES-B13F", "ES-H11F(G5)", "ES-H13F(G5)", "ES-H15F(W1)", "ES-B10D", "ES-B13D", "ES-B15D", "ES-B17D", "ES-P13DV(G5)", "ES-P15DV(P1)", "ES-P14DV(G5)", "ES-P16DV(P1)", "ES-L14V(G5)", "ES-L16V(G5)", "ES-L16V(K1)", "ES-N18V(K1)", "ES-N18VS(S1)", "ES-L17DP(R1)", "ES-L19DP(R1)", "ES-P17DPS(S1)", "ES-P19DPS(S1)", "ES-P12DA", "ES-P17DA(S3)", "ES-P17DAS(S1)", "ES-P19DA(R2)", "ES-P19DAS(S1)", "ES-P19DA(NPM1)", "ES-P19DA(NPM2)", "ES-ND10DH", "ES-ND12DH", "ES-PD13DH", "DH-120DW", "SD-10DH", "ES-PD10D", "DH-100CJ"], "乾衣機": ["SD-7B", "SD-7C"], "冷氣": ["AU/AM-PH22DC", "AU/AM-PH28DC", "AU/AM-PH36DC", "AU/AM-PH41DC", "AU/AM-PH50DC", "AU/AM-PH63DC", "AU/AM-PH72DC", "AU/AM-PH88DC", "AU/AM-NH22DC", "AU/AM-NH28DC", "AU/AM-NH36DC", "AU/AM-NH41DC", "AU/AM-NH50DC", "AU/AM-NH63DC", "AU/AM-NH72DC", "AU/AM-NH92DC", "AU/AM-NF22D1", "AU/AM-NF28D", "AU/AM-NF36D", "AU/AM-NF41D", "AU/AM-NF50D", "AU/AM-NF63D", "AU/AM-NF72D", "AU/AM-NF86D1", "AU/AM-NF22DC1", "AU/AM-NF28DC", "AU/AM-NF36DC", "AU/AM-NF41DC", "AU/AM-NF50DC", "AU/AM-NF63DC", "AU/AM-NF72DC", "AU/AM-NF86DC1", "AU/AM-NF110DC1", "AU/AM-NF140DC1", "AU/AM-PF22DC1", "AU/AM-PF28DC", "AU/AM-PF36DC", "AU/AM-PF41DC", "AU/AM-PF50DC", "AU/AM-PF63DC", "AU/AM-PF72DC", "AU/AM-PF86DC1", "AW-PF22D", "AW-PF28D", "AW-PF36D1", "AW-PF41D1", "AW-PF50D1", "AW-PF65D1", "AT-PF122", "AW-PC122R", "AW-PC122L", "AW-PC22R", "AW-PC22L", "AW-PC28R", "AW-PC28L", "AW-PC36R", "AW-PC36L", "AW-PC41R", "AW-PC41L", "AW-PC50R", "AW-PC50L", "AW-PC63R", "AW-PC63L", "AW-PC72R", "AW-PC72L", "AW-RH22DC", "AW-RH28DC", "AW-RH36DC", "AW-RH41DC", "AW-RH50DC", "AW-RH63DC", "AW-RH72DC", "AW-LH22DC", "AW-LH28DC", "AW-LH36DC", "AW-LH41DC", "AW-LH50DC", "AW-LH63DC", "AW-LH72DC", "AU/AM-HF22D", "AU/AM-HF28D", "AU/AM-HF36D", "AU/AM-HF41D", "AU/AM-HF50D", "AU/AM-HF63D", "AU/AM-HF72D", "AU/AM-HF92D", "AU/AM-VF22DC", "AU/AM-VF28DC", "AU/AM-VF36DC", "AU/AM-VF41DC", "AU/AM-VF50DC", "AU/AM-VF63DC", "AU/AM-VF72DC", "AU/AM-VF88DC", "AU/AM-VF22DC1", "AU/AM-VF28DC1", "AU/AM-VF36DC1", "AU/AM-VF41DC1", "AU/AM-VF50DC1", "AU/AM-VF63DC1", "AU/AM-VF72DC1", "AU/AM-VF88DC1", "AU/AM-JF22DC", "AU/AM-JF28DC", "AU/AM-JF36DC", "AU/AM-JF41DC", "AU/AM-JF50DC", "AU/AM-JF72DC", "AU/AM-JF88DC", "RAU/RAM-HA22DC", "RAU/RAM-HA28DC", "RAU/RAM-HA36DC", "RAU/RAM-HA41DC", "RAU/RAM-HA50DC", "RAU/RAM-HA72DC", "RAU/RAM-HA80DC", "RAU/RAM-HA92DC", "RAU/RAM-HA110DC", "RAU/RAM-HA140DC", "RUF-HA140DC", "RPF-HA140DC", "RAW-HA30D", "RAW-HA36D", "RAW-HA42D", "RAW-HA55D", "RAW-HA65D"], "冰櫃": ["SRF-100D", "SRF-151D", "SRF-201GD", "SRF-300D", "SRF-125FD", "SRF-171F", "SRF-171FD", "SRF-220FD", "SRF-285FD", "SRF-325FD", "SRF-410FD", "SRF-455FD"]};
@@ -1043,45 +1044,94 @@ function PriceListSystem() {
   );
 }
 
-// 管理頁：發送公告到所有 LINE 群組（純文字版）
+// 管理頁：發送公告到所有 LINE 群組（文字 + 照片/檔案，透過 Cloud Function 中轉上傳）
 function AnnouncementManager() {
   var textState = useState("");
   var text = textState[0], setText = textState[1];
+  var fileState = useState(null);
+  var file = fileState[0], setFile = fileState[1];
   var msgState = useState("");
   var msg = msgState[0], setMsg = msgState[1];
   var busyState = useState(false);
   var busy = busyState[0], setBusy = busyState[1];
+  var fileRef = useRef();
+
+  function onFileChange(e) {
+    var f = e.target.files[0];
+    if (f && f.size > 8 * 1024 * 1024) {
+      setMsg("檔案過大，請控制在 8MB 以內");
+      e.target.value = "";
+      return;
+    }
+    setFile(f || null);
+    setMsg("");
+  }
+
+  function fileToBase64(f) {
+    return new Promise(function (resolve, reject) {
+      var reader = new FileReader();
+      reader.onload = function () {
+        var result = reader.result;
+        var base64 = result.split(",")[1];
+        resolve(base64);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(f);
+    });
+  }
 
   function send() {
     var trimmed = text.trim();
-    if (!trimmed) { setMsg("請輸入公告文字"); return; }
+    if (!trimmed && !file) { setMsg("請輸入公告文字或選擇要傳送的檔案/照片"); return; }
     setBusy(true); setMsg("");
 
     auth.currentUser.getIdToken().then(function (idToken) {
-      return fetch(ANNOUNCEMENT_ENDPOINT, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: "Bearer " + idToken },
-        body: JSON.stringify({ text: trimmed, fileUrl: "", fileType: "" })
+      if (!file) {
+        return fetch(ANNOUNCEMENT_ENDPOINT, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: "Bearer " + idToken },
+          body: JSON.stringify({ text: trimmed, fileUrl: "", fileType: "" })
+        }).then(function (res) { return res.json(); });
+      }
+
+      return fileToBase64(file).then(function (base64) {
+        return fetch(UPLOAD_ENDPOINT, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: "Bearer " + idToken },
+          body: JSON.stringify({ fileName: file.name, contentType: file.type || "application/octet-stream", dataBase64: base64 })
+        });
+      }).then(function (res) { return res.json(); }).then(function (uploadData) {
+        if (!uploadData || !uploadData.ok) {
+          throw new Error(uploadData && uploadData.error ? uploadData.error : "檔案上傳失敗");
+        }
+        var isImage = file.type && file.type.indexOf("image/") === 0;
+        return auth.currentUser.getIdToken().then(function (idToken2) {
+          return fetch(ANNOUNCEMENT_ENDPOINT, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: "Bearer " + idToken2 },
+            body: JSON.stringify({ text: trimmed, fileUrl: uploadData.url, fileType: isImage ? "image" : "file" })
+          });
+        }).then(function (res) { return res.json(); });
       });
-    }).then(function (res) { return res.json(); }).then(function (data) {
+    }).then(function (data) {
       setBusy(false);
       if (data && data.ok) {
         setMsg("✅ 已發送給 " + data.success + " / " + data.total + " 個群組");
-        setText("");
+        setText(""); setFile(null);
       } else {
         setMsg("❌ 發送失敗：" + (data && data.error ? data.error : "未知錯誤"));
       }
     }).catch(function (err) {
       console.error(err);
       setBusy(false);
-      setMsg("❌ 發送失敗，請確認網路連線");
+      setMsg("❌ " + (err && err.message ? err.message : "發送失敗，請稍後再試"));
     });
   }
 
   return h("div", { style: { background: "#fff", borderRadius: 14, padding: 20, boxShadow: "0 1px 6px rgba(0,0,0,0.07)" } },
     h("div", { style: { fontWeight: 800, fontSize: 16, color: "#1A237E", marginBottom: 4 } }, "📢 發送公告到所有群組"),
     h("div", { style: { fontSize: 12, color: "#888", marginBottom: 14, lineHeight: 1.6 } },
-      "公告會由「庫存小幫手」發送文字訊息到白名單裡的每一個 LINE 群組。"
+      "公告會由「庫存小幫手」發送到白名單裡的每一個 LINE 群組。可以只打文字、只傳照片/檔案，或兩者一起送。單檔限制 8MB。"
     ),
     h("textarea", {
       value: text, onChange: function (e) { setText(e.target.value); },
@@ -1089,6 +1139,14 @@ function AnnouncementManager() {
       rows: 4,
       style: { width: "100%", boxSizing: "border-box", padding: "10px 12px", marginBottom: 10, borderRadius: 8, border: "1.5px solid #E0E0E0", fontSize: 14, outline: "none", fontFamily: "inherit", resize: "vertical" }
     }),
+    file ? h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: "#F8F9FF", borderRadius: 8, marginBottom: 10, fontSize: 13 } },
+      h("span", { style: { color: "#1A237E", wordBreak: "break-all" } }, "📎 " + file.name),
+      h("button", { onClick: function () { setFile(null); }, style: { fontSize: 12, color: "#C62828", border: "none", background: "none", cursor: "pointer", flexShrink: 0, marginLeft: 8 } }, "✕")
+    ) : h("button", {
+      onClick: function () { if (fileRef.current) fileRef.current.click(); },
+      style: { width: "100%", padding: "12px", borderRadius: 10, border: "2px dashed #3949AB", background: "#EEF0FB", color: "#3949AB", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit", marginBottom: 10 }
+    }, "📎 選擇照片或檔案（選填）"),
+    h("input", { ref: fileRef, type: "file", onChange: onFileChange, style: { display: "none" } }),
     h("button", {
       onClick: send, disabled: busy,
       style: { width: "100%", padding: "14px", borderRadius: 10, border: "none", background: "#1A237E", color: "#fff", fontWeight: 700, fontSize: 15, cursor: busy ? "not-allowed" : "pointer", fontFamily: "inherit" }
