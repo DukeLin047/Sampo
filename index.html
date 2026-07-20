@@ -88,8 +88,9 @@ var PREFIX_RULES = [
   { prefixes: ["SR"],       category: "冰箱" },
   { prefixes: ["ES"],       category: "洗衣機" },
   { prefixes: ["AW-PF", "AW-LH", "AW-RH"], category: "窗型冷氣" },
-  { prefixes: ["AU"],       category: "冷氣室外機" },
-  { prefixes: ["AM"],       category: "冷氣室內機" },
+  { prefixes: ["AU"],       category: "聲寶分離式冷氣室外機" },
+  { prefixes: ["AM"],       category: "聲寶分離式冷氣室內機" },
+  { prefixes: ["CH"],       category: "聲寶吊隱冷氣室內機" },
   { prefixes: ["RAU-HA"],   category: "瑞智分離式冷氣外機" },
   { prefixes: ["RAM-HA"],   category: "瑞智分離式冷氣內機" },
   { prefixes: ["RAW-HA"],   category: "瑞智窗型冷氣" }
@@ -106,7 +107,7 @@ function getCategory(model) {
   return "小家電"; // 不符合上述任何規則的，一律歸類為小家電
 }
 
-var CATEGORY_LIST = ["電視", "冰箱", "冷凍櫃", "洗衣機", "窗型冷氣", "冷氣室外機", "冷氣室內機", "瑞智分離式冷氣外機", "瑞智分離式冷氣內機", "瑞智窗型冷氣", "小家電"];
+var CATEGORY_LIST = ["電視", "冰箱", "冷凍櫃", "洗衣機", "窗型冷氣", "聲寶分離式冷氣室外機", "聲寶分離式冷氣室內機", "聲寶吊隱冷氣室內機", "瑞智分離式冷氣外機", "瑞智分離式冷氣內機", "瑞智窗型冷氣", "小家電"];
 
 var CATEGORY_COLORS = {
   "電視":      { bg: "#F3E5F5", text: "#6A1B9A", dot: "#9C27B0" },
@@ -114,8 +115,9 @@ var CATEGORY_COLORS = {
   "冷凍櫃":    { bg: "#E1F5FE", text: "#0277BD", dot: "#03A9F4" },
   "洗衣機":    { bg: "#FFF3E0", text: "#E65100", dot: "#FF9800" },
   "窗型冷氣":  { bg: "#FCE4EC", text: "#AD1457", dot: "#EC407A" },
-  "冷氣室外機": { bg: "#E8F4FD", text: "#1A6B9A", dot: "#2196F3" },
-  "冷氣室內機": { bg: "#E0F7FA", text: "#00695C", dot: "#00BCD4" },
+  "聲寶分離式冷氣室外機": { bg: "#E8F4FD", text: "#1A6B9A", dot: "#2196F3" },
+  "聲寶分離式冷氣室內機": { bg: "#E0F7FA", text: "#00695C", dot: "#00BCD4" },
+  "聲寶吊隱冷氣室內機":   { bg: "#E8EAF6", text: "#283593", dot: "#5C6BC0" },
   "瑞智分離式冷氣外機": { bg: "#EDE7F6", text: "#4527A0", dot: "#7E57C2" },
   "瑞智分離式冷氣內機": { bg: "#F3E5F5", text: "#6A1B9A", dot: "#AB47BC" },
   "瑞智窗型冷氣":       { bg: "#FFF8E1", text: "#F9A825", dot: "#FFCA28" },
@@ -124,7 +126,7 @@ var CATEGORY_COLORS = {
 
 var DEFAULT_THRESHOLD = {
   "電視": 10, "冰箱": 10, "冷凍櫃": 10, "洗衣機": 10, "窗型冷氣": 5,
-  "冷氣室外機": 5, "冷氣室內機": 5,
+  "聲寶分離式冷氣室外機": 5, "聲寶分離式冷氣室內機": 5, "聲寶吊隱冷氣室內機": 5,
   "瑞智分離式冷氣外機": 5, "瑞智分離式冷氣內機": 5, "瑞智窗型冷氣": 5,
   "小家電": 5
 };
