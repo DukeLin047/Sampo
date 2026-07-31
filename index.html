@@ -2,116 +2,61 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
-<title>網路查價系統</title>
-<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>聲寶家電庫存查詢</title>
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js" crossorigin="anonymous"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js" crossorigin="anonymous"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js" crossorigin="anonymous"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js" crossorigin="anonymous"></script>
 <style>
-  :root{
-    --ink:#12313F;
-    --ink-2:#1B4655;
-    --paper:#F5F7F7;
-    --card:#FFFFFF;
-    --line:#DCE3E3;
-    --text:#1C2B2E;
-    --muted:#5B6E71;
-    --ok:#2E7D5B;
-    --warn:#C97C1E;
-    --bad:#C4433B;
-    --accent:#0E7C86;
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #F2F4F8; font-family: 'PingFang TC','Noto Sans TC','Microsoft JhengHei',sans-serif; }
+  #error-box { display:none; padding:20px; color:#C62828; font-size:14px; white-space:pre-wrap; }
+  /* 響應式容器：手機窄、電腦寬 */
+  .app-container { width: 100%; max-width: 480px; margin: 0 auto; }
+  @media (min-width: 768px) {
+    .app-container { max-width: 900px; }
+    /* 電腦版：型號/機型清單改兩欄 */
+    .resp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: start; }
   }
-  *{box-sizing:border-box;}
-  body{
-    margin:0;
-    font-family:-apple-system,BlinkMacSystemFont,"PingFang TC","Helvetica Neue",Arial,sans-serif;
-    background:var(--paper);
-    color:var(--text);
-    -webkit-font-smoothing:antialiased;
-  }
-  .app-container{max-width:480px;margin:0 auto;min-height:100vh;background:var(--paper);padding-bottom:80px;}
-  @media (min-width:900px){.app-container{max-width:900px;}}
-
-  .topbar{background:var(--ink);color:#fff;padding:18px 16px 14px;position:sticky;top:0;z-index:10;}
-  .topbar h1{margin:0;font-size:19px;letter-spacing:0.02em;font-weight:700;}
-  .topbar .sub{font-size:12px;color:#9FC3C9;margin-top:2px;}
-
-  .tabs{display:flex;background:var(--ink-2);position:sticky;top:56px;z-index:9;overflow-x:auto;}
-  .tab{flex:1;text-align:center;padding:11px 6px;font-size:13px;color:#B9D3D6;cursor:pointer;white-space:nowrap;border-bottom:3px solid transparent;}
-  .tab.active{color:#fff;border-bottom:3px solid var(--accent);font-weight:600;}
-
-  .content{padding:14px 14px 40px;}
-
-  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:12px;}
-  .card h2{font-size:15px;margin:0 0 10px;color:var(--ink);}
-
-  .row{display:flex;gap:8px;margin-bottom:8px;}
-  .row > *{flex:1;}
-  input,select{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:7px;font-size:14px;background:#fff;color:var(--text);}
-  input:focus,select:focus{outline:2px solid var(--accent);outline-offset:0;}
-
-  button{border:none;border-radius:7px;padding:9px 14px;font-size:14px;font-weight:600;cursor:pointer;}
-  .btn-primary{background:var(--accent);color:#fff;}
-  .btn-primary:disabled{background:#9FC3C9;cursor:not-allowed;}
-  .btn-ghost{background:#fff;border:1px solid var(--line);color:var(--ink);}
-  .btn-danger{background:#fff;border:1px solid var(--bad);color:var(--bad);}
-  .btn-sm{padding:6px 10px;font-size:12.5px;}
-  .btn-export{background:var(--ink);color:#fff;}
-
-  table{width:100%;border-collapse:collapse;font-size:13.5px;}
-  th{text-align:left;font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:0.03em;padding:6px 4px;border-bottom:1px solid var(--line);}
-  td{padding:8px 4px;border-bottom:1px solid #EDF1F1;vertical-align:middle;}
-  tr:last-child td{border-bottom:none;}
-
-  .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11.5px;font-weight:600;}
-  .pill-ok{background:#E4F2EB;color:var(--ok);}
-  .pill-warn{background:#FBEEDD;color:var(--warn);}
-  .pill-bad{background:#FBE8E7;color:var(--bad);}
-  .pill-muted{background:#EEF1F1;color:var(--muted);}
-
-  .empty{text-align:center;color:var(--muted);font-size:13.5px;padding:30px 10px;}
-
-  .login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--ink);padding:20px;}
-  .login-card{background:#fff;border-radius:14px;padding:28px 22px;width:100%;max-width:340px;}
-  .login-card h1{font-size:18px;color:var(--ink);margin:0 0 4px;}
-  .login-card p{font-size:13px;color:var(--muted);margin:0 0 18px;}
-  .login-card .err{color:var(--bad);font-size:12.5px;margin-top:8px;}
-
-  .link{color:var(--accent);text-decoration:none;font-size:13px;font-weight:600;}
-  .muted{color:var(--muted);font-size:12.5px;}
-  .diff-pos{color:var(--bad);font-weight:700;}
-  .diff-neg{color:var(--ok);font-weight:700;}
-  .diff-zero{color:var(--muted);}
-
-  .toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:8px;flex-wrap:wrap;}
-  .toolbar h2{margin:0;}
-  .search{margin-bottom:10px;}
-  .src-tag{font-size:10.5px;color:var(--accent);background:#E6F3F4;border-radius:5px;padding:1px 6px;margin-left:6px;}
 </style>
 </head>
 <body>
 <div id="root"></div>
+<div id="error-box"></div>
 
-<script type="text/babel">
-const { useState, useEffect, useMemo, useRef } = React;
+<script>
+window.addEventListener("error", function (e) {
+  var box = document.getElementById("error-box");
+  box.style.display = "block";
+  var detail = e.message + "\n(" + e.filename + ":" + e.lineno + ":" + e.colno + ")";
+  if (e.error && e.error.stack) {
+    detail += "\n\nStack:\n" + e.error.stack;
+  }
+  box.textContent = "頁面發生錯誤：\n" + detail;
+});
+</script>
 
-// ====== 這個查價系統自己的 Firebase 專案：請換成你新建的設定 ======
-const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  projectId: "YOUR_PROJECT",
-  storageBucket: "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
-};
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
+<script>
+window.addEventListener("unhandledrejection", function (e) {
+  var box = document.getElementById("error-box");
+  box.style.display = "block";
+  box.textContent = (box.textContent || "") + "\n\n未處理的 Promise 錯誤：\n" + (e.reason && e.reason.message ? e.reason.message : String(e.reason));
+});
+</script>
 
-// ====== Sampo 經銷商系統的 Firebase 專案（唯讀，拿價格表資料）======
-const sampoFirebaseConfig = {
+<script>
+var h = React.createElement;
+var useState = React.useState;
+var useEffect = React.useEffect;
+var useMemo = React.useMemo;
+var useRef = React.useRef;
+
+// ── Firebase 設定 ──────────────────────────────────────────────
+var firebaseConfig = {
   apiKey: "AIzaSyBXKXp7JWpjopZUV01nfN1GvWWpe2LOsuQ",
   authDomain: "sampo-58f06.firebaseapp.com",
   projectId: "sampo-58f06",
@@ -120,469 +65,2282 @@ const sampoFirebaseConfig = {
   appId: "1:476808643013:web:f170a4300497cd4b5a8bac",
   measurementId: "G-XXWR0HQE89"
 };
-const sampoApp = firebase.initializeApp(sampoFirebaseConfig, "sampoApp");
-const sampoDb = sampoApp.firestore();
+firebase.initializeApp(firebaseConfig);
+var db = firebase.firestore();
+var auth = firebase.auth();
+var DOC_REF = db.collection("inventory").doc("current");
+var ANNOUNCEMENT_ENDPOINT = "https://sendannouncement-r4vahxz6yq-de.a.run.app";
+var UPLOAD_ENDPOINT = "https://uploadannouncementfile-r4vahxz6yq-de.a.run.app";
 
-// 系統密碼（之後想改，直接改這行重新上傳即可）
-const APP_PASSWORD = "sampo1313";
+// ===== 經銷商系統資料 =====
+var DEALER_PRODUCTS = {"電視": ["QM-98MI5200", "STD-MS01", "QM-100SD620", "QM-85SDF620", "QM-65MIW4210", "QM-55MIW4210", "EM-75AIT3200", "EM-65AIT3220", "EM-55AIT3220", "EM-50AIT3220", "EM-43AIT3200", "QM-75SF620", "QM-65SF620", "QM-55SF620", "QM-50SF620", "QM-43SF620", "EM-70RF130", "EM-40HF130", "EM-32HF130", "EM-50GF610", "EM-55GF610", "EM-65GF610", "EM-55GFT610", "EM-65GFT610", "EM-43MDS200", "EM-43FD630", "EM-40CBS200", "EM-32MDS200", "EM-32FD630", "EM-24GF600", "EM-43MDT200", "EM-32MDT200"], "冰箱": ["SR-C05", "SR-C07", "SR-C09G", "SR-C09", "SR-C10(E)", "SR-C10(P)", "SR-C12G", "SR-C14Q(Y9)", "SR-C14Q(R6)", "SR-C48G(Y9)", "SR-C61G(K3)", "SR-C21D(R)", "SR-C25D(G6)", "SR-C25D(Y9)", "SR-M25D", "SR-C37D(K5)", "SR-C48DV(Y1)", "SR-C48D(S1)", "SR-C48D(Y9)", "SR-C53DV(Y7)", "SR-C53D(S9)", "SR-C56DD(Y5)", "SR-C58D(S9)", "SR-C58DV(Y7)", "SR-F61DV(Y7)", "SR-F61D(S2)", "SR-C61D(S9)", "SR-F26D", "SR-C35GD", "SR-C48GDD", "SR-C45GDD", "SR-A46GDV(W6)", "SR-C48GDV(P2)", "SR-C53GDV(Y3)", "SR-C61GDV(Y8)"], "洗衣機": ["KR-UB48F", "ES-1300T", "ES-B07F", "ES-B08F", "ES-B10F", "ES-B13F", "ES-H11F(G5)", "ES-H13F(G5)", "ES-H15F(W1)", "ES-B10D", "ES-B13D", "ES-B15D", "ES-B17D", "ES-P13DV(G5)", "ES-P15DV(P1)", "ES-P14DV(G5)", "ES-P16DV(P1)", "ES-L14V(G5)", "ES-L16V(G5)", "ES-L16V(K1)", "ES-N18V(K1)", "ES-N18VS(S1)", "ES-L17DP(R1)", "ES-L19DP(R1)", "ES-P17DPS(S1)", "ES-P19DPS(S1)", "ES-P12DA", "ES-P17DA(S3)", "ES-P17DAS(S1)", "ES-P19DA(R2)", "ES-P19DAS(S1)", "ES-P19DA(NPM1)", "ES-P19DA(NPM2)", "ES-ND10DH", "ES-ND12DH", "ES-PD13DH", "DH-120DW", "SD-10DH", "ES-PD10D", "DH-100CJ"], "乾衣機": ["SD-7B", "SD-7C"], "冷氣": ["AU/AM-PH22DC", "AU/AM-PH28DC", "AU/AM-PH36DC", "AU/AM-PH41DC", "AU/AM-PH50DC", "AU/AM-PH63DC", "AU/AM-PH72DC", "AU/AM-PH88DC", "AU/AM-NH22DC", "AU/AM-NH28DC", "AU/AM-NH36DC", "AU/AM-NH41DC", "AU/AM-NH50DC", "AU/AM-NH63DC", "AU/AM-NH72DC", "AU/AM-NH92DC", "AU/AM-NF22D1", "AU/AM-NF28D", "AU/AM-NF36D", "AU/AM-NF41D", "AU/AM-NF50D", "AU/AM-NF63D", "AU/AM-NF72D", "AU/AM-NF86D1", "AU/AM-NF22DC1", "AU/AM-NF28DC", "AU/AM-NF36DC", "AU/AM-NF41DC", "AU/AM-NF50DC", "AU/AM-NF63DC", "AU/AM-NF72DC", "AU/AM-NF86DC1", "AU/AM-NF110DC1", "AU/AM-NF140DC1", "AU/AM-PF22DC1", "AU/AM-PF28DC", "AU/AM-PF36DC", "AU/AM-PF41DC", "AU/AM-PF50DC", "AU/AM-PF63DC", "AU/AM-PF72DC", "AU/AM-PF86DC1", "AW-PF22D", "AW-PF28D", "AW-PF36D1", "AW-PF41D1", "AW-PF50D1", "AW-PF65D1", "AT-PF122", "AW-PC122R", "AW-PC122L", "AW-PC22R", "AW-PC22L", "AW-PC28R", "AW-PC28L", "AW-PC36R", "AW-PC36L", "AW-PC41R", "AW-PC41L", "AW-PC50R", "AW-PC50L", "AW-PC63R", "AW-PC63L", "AW-PC72R", "AW-PC72L", "AW-RH22DC", "AW-RH28DC", "AW-RH36DC", "AW-RH41DC", "AW-RH50DC", "AW-RH63DC", "AW-RH72DC", "AW-LH22DC", "AW-LH28DC", "AW-LH36DC", "AW-LH41DC", "AW-LH50DC", "AW-LH63DC", "AW-LH72DC", "AU/AM-HF22D", "AU/AM-HF28D", "AU/AM-HF36D", "AU/AM-HF41D", "AU/AM-HF50D", "AU/AM-HF63D", "AU/AM-HF72D", "AU/AM-HF92D", "AU/AM-VF22DC", "AU/AM-VF28DC", "AU/AM-VF36DC", "AU/AM-VF41DC", "AU/AM-VF50DC", "AU/AM-VF63DC", "AU/AM-VF72DC", "AU/AM-VF88DC", "AU/AM-VF22DC1", "AU/AM-VF28DC1", "AU/AM-VF36DC1", "AU/AM-VF41DC1", "AU/AM-VF50DC1", "AU/AM-VF63DC1", "AU/AM-VF72DC1", "AU/AM-VF88DC1", "AU/AM-JF22DC", "AU/AM-JF28DC", "AU/AM-JF36DC", "AU/AM-JF41DC", "AU/AM-JF50DC", "AU/AM-JF72DC", "AU/AM-JF88DC", "RAU/RAM-HA22DC", "RAU/RAM-HA28DC", "RAU/RAM-HA36DC", "RAU/RAM-HA41DC", "RAU/RAM-HA50DC", "RAU/RAM-HA72DC", "RAU/RAM-HA80DC", "RAU/RAM-HA92DC", "RAU/RAM-HA110DC", "RAU/RAM-HA140DC", "RUF-HA140DC", "RPF-HA140DC", "RAW-HA30D", "RAW-HA36D", "RAW-HA42D", "RAW-HA55D", "RAW-HA65D"], "冰櫃": ["SRF-100D", "SRF-151D", "SRF-201GD", "SRF-300D", "SRF-125FD", "SRF-171F", "SRF-171FD", "SRF-220FD", "SRF-285FD", "SRF-325FD", "SRF-410FD", "SRF-455FD"]};
+var DEALER_LIST = [{"code": "L03034503", "name": "久久", "area": "A42B"}, {"code": "L03084526", "name": "大昌", "area": "A42B"}, {"code": "L04434517", "name": "天照", "area": "A42B"}, {"code": "L05094581", "name": "正昇", "area": "A42B"}, {"code": "L05094590", "name": "永和", "area": "A42B"}, {"code": "L05104523", "name": "正泰順", "area": "A42B"}, {"code": "L06064596", "name": "仰光", "area": "A42B"}, {"code": "L06074566", "name": "兆呈", "area": "A42B"}, {"code": "L06124551", "name": "全統", "area": "A42B"}, {"code": "L06154507", "name": "伍億", "area": "A42B"}, {"code": "L09064515", "name": "冠成", "area": "A42B"}, {"code": "L09094561", "name": "長紅", "area": "A42B"}, {"code": "L09184527", "name": "建豐", "area": "A42B"}, {"code": "L09434552", "name": "恆源", "area": "A42B"}, {"code": "L09464558", "name": "建穎", "area": "A42B"}, {"code": "L11074506", "name": "啟宏", "area": "A42B"}, {"code": "L12084502", "name": "喬旺", "area": "A42B"}, {"code": "L12434555", "name": "景暘", "area": "A42B"}, {"code": "L12434575", "name": "創凡", "area": "A42B"}, {"code": "L13084516", "name": "聖昌", "area": "A42B"}, {"code": "L14174560", "name": "廣駿", "area": "A42B"}, {"code": "L15104504", "name": "慶泰", "area": "A42B"}, {"code": "L16154560", "name": "聯毅", "area": "A42B"}, {"code": "L16424558", "name": "錩發", "area": "A42B"}, {"code": "L17054531", "name": "總立", "area": "A42B"}, {"code": "L18134506", "name": "謦暉", "area": "A42B"}, {"code": "L24164508", "name": "鑫錩", "area": "A42B"}, {"code": "L03044507", "name": "台灣三井", "area": "A42C"}, {"code": "L03114508", "name": "小田國際", "area": "A42C"}, {"code": "L05054510", "name": "尚亨", "area": "A42C"}, {"code": "L05124581", "name": "正智", "area": "A42C"}, {"code": "L06044501", "name": "老王", "area": "A42C"}, {"code": "L06064532", "name": "劦成", "area": "A42C"}, {"code": "L06094551", "name": "百冠", "area": "A42C"}, {"code": "L06114509", "name": "全球", "area": "A42C"}, {"code": "L07104518", "name": "成泰", "area": "A42C"}, {"code": "L07154504", "name": "永勝", "area": "A42C"}, {"code": "L08134589", "name": "金正昌", "area": "A42C"}, {"code": "L08144577", "name": "金連發", "area": "A42C"}, {"code": "L08174515", "name": "東旭", "area": "A42C"}, {"code": "L10074590", "name": "台灣高沅", "area": "A42C"}, {"code": "L10134546", "name": "益新", "area": "A42C"}, {"code": "L11124519", "name": "國欽", "area": "A42C"}, {"code": "L11124564", "name": "翌勝", "area": "A42C"}, {"code": "L12124561", "name": "富順", "area": "A42C"}, {"code": "L12134522", "name": "勝達", "area": "A42C"}, {"code": "L13084552", "name": "瑞林", "area": "A42C"}, {"code": "L13094595", "name": "國際極品", "area": "A42C"}, {"code": "L13134501", "name": "瑞豐", "area": "A42C"}, {"code": "L13154532", "name": "隆輝", "area": "A42C"}, {"code": "L13494508", "name": "聖城", "area": "A42C"}, {"code": "L14134527", "name": "嘉新", "area": "A42C"}, {"code": "L15064534", "name": "慶全", "area": "A42C"}, {"code": "L15154530", "name": "阿噗噗", "area": "A42C"}, {"code": "L17184504", "name": "緯鴻", "area": "A42C"}, {"code": "L17474510", "name": "鴻佑", "area": "A42C"}, {"code": "L18154505", "name": "豐赫", "area": "A42C"}, {"code": "L22124506", "name": "高盛", "area": "A42C"}, {"code": "L09484503", "name": "冠銓", "area": "A42C"}, {"code": "L06464552", "name": "光堡", "area": "A42C"}, {"code": "L03064577", "name": "三有", "area": "A42D"}, {"code": "L03104510", "name": "千益", "area": "A42D"}, {"code": "L03214507", "name": "大聯", "area": "A42D"}, {"code": "L05064535", "name": "台光", "area": "A42D"}, {"code": "L05074532", "name": "正光", "area": "A42D"}, {"code": "L05224580", "name": "北極熊", "area": "A42D"}, {"code": "L05234550", "name": "弘鉅", "area": "A42D"}, {"code": "L06244530", "name": "安鑫", "area": "A42D"}, {"code": "L07094503", "name": "宏城", "area": "A42D"}, {"code": "L07094530", "name": "宏易", "area": "A42D"}, {"code": "L08044541", "name": "長仁", "area": "A42D"}, {"code": "L08074588", "name": "東朋", "area": "A42D"}, {"code": "L08144568", "name": "尚豪", "area": "A42D"}, {"code": "L09084528", "name": "昇昌", "area": "A42D"}, {"code": "L09084546", "name": "尚杰", "area": "A42D"}, {"code": "L09154506", "name": "星暉", "area": "A42D"}, {"code": "L09474507", "name": "泓谷", "area": "A42D"}, {"code": "L10064520", "name": "祥好", "area": "A42D"}, {"code": "L10414556", "name": "特家麗(大電)", "area": "A42D"}, {"code": "L10414151", "name": "特家麗(小電)", "area": "A42D"}, {"code": "L11054502", "name": "健民", "area": "A42D"}, {"code": "L11084512", "name": "國昇", "area": "A42D"}, {"code": "L11114503", "name": "國彬", "area": "A42D"}, {"code": "L14124529", "name": "嘉清", "area": "A42D"}, {"code": "L17074508", "name": "億合", "area": "A42D"}, {"code": "L03104592", "name": "三原", "area": "A42E"}, {"code": "L03154560", "name": "上加", "area": "A42E"}, {"code": "L03244517", "name": "上鑫", "area": "A42E"}, {"code": "L05044540", "name": "立仁", "area": "A42E"}, {"code": "L05064571", "name": "永吉", "area": "A42E"}, {"code": "L05064580", "name": "永全", "area": "A42E"}, {"code": "L06084590", "name": "立欣", "area": "A42E"}, {"code": "L07064566", "name": "宏全", "area": "A42E"}, {"code": "L07124558", "name": "成進", "area": "A42E"}, {"code": "L07144516", "name": "旭遠", "area": "A42E"}, {"code": "L08094564", "name": "東虹", "area": "A42E"}, {"code": "L08204532", "name": "昇寶", "area": "A42E"}, {"code": "L09064579", "name": "建成", "area": "A42E"}, {"code": "L10054514", "name": "振生", "area": "A42E"}, {"code": "L10084515", "name": "晉昇", "area": "A42E"}, {"code": "L11064527", "name": "乾成", "area": "A42E"}, {"code": "L11084519", "name": "盛岡", "area": "A42E"}, {"code": "L12034514", "name": "富山", "area": "A42E"}, {"code": "L12174593", "name": "裕興", "area": "A42E"}, {"code": "L13124559", "name": "喬揚", "area": "A42E"}, {"code": "L13204536", "name": "新寶", "area": "A42E"}, {"code": "L14034536", "name": "銘山", "area": "A42E"}, {"code": "L14174524", "name": "廣鴻", "area": "A42E"}, {"code": "L15084529", "name": "德和", "area": "A42E"}, {"code": "L16084580", "name": "興東亞", "area": "A42E"}];
+var DEALER_AREAS = {"A42B": {"num": "135", "sales": "陳世穎"}, "A42C": {"num": "136", "sales": "林名富"}, "A42D": {"num": "137", "sales": "蔡世賢"}, "A42E": {"num": "138", "sales": "王清標"}};
+// 經銷商店庫存的 Firestore collection
+var DEALER_STOCK_COL = db.collection("dealerStock");
 
-function fmtMoney(n){
-  if(n===null || n===undefined || n==="") return "-";
-  return Number(n).toLocaleString("zh-TW");
+// ── 設定 ──────────────────────────────────────────────────────
+var TARGET_LOCATION = "4326";
+
+var PREFIX_RULES = [
+  { prefixes: ["EM", "QM"], category: "電視" },
+  { prefixes: ["SRF"],      category: "冷凍櫃" },
+  { prefixes: ["SR"],       category: "冰箱" },
+  { prefixes: ["ES"],       category: "洗衣機" },
+  { prefixes: ["AW-PF", "AW-LH", "AW-RH"], category: "窗型冷氣" },
+  { prefixes: ["AU"],       category: "聲寶分離式冷氣室外機" },
+  { prefixes: ["AM"],       category: "聲寶分離式冷氣室內機" },
+  { prefixes: ["CH"],       category: "聲寶吊隱冷氣室內機" },
+  { prefixes: ["RAU-HA"],   category: "瑞智分離式冷氣外機" },
+  { prefixes: ["RAM-HA"],   category: "瑞智分離式冷氣內機" },
+  { prefixes: ["RAW-HA"],   category: "瑞智窗型冷氣" }
+];
+
+function getCategory(model) {
+  var m = String(model).toUpperCase();
+  for (var i = 0; i < PREFIX_RULES.length; i++) {
+    var rule = PREFIX_RULES[i];
+    for (var j = 0; j < rule.prefixes.length; j++) {
+      if (m.indexOf(rule.prefixes[j]) === 0) return rule.category;
+    }
+  }
+  return "小家電"; // 不符合上述任何規則的，一律歸類為小家電
 }
-function toNum(v){
-  if(v===null || v===undefined || v==="") return null;
-  const n = Number(String(v).replace(/[^0-9.\-]/g,""));
-  return isNaN(n) ? null : n;
-}
 
-// 從 Sampo 價格表 item 決定「官方刊登價」：優先網路查價，其次建議售價，其次售價
-function officialPriceOf(item){
-  const wc = toNum(item.webCheck);
-  if(wc!==null) return {price: wc, field: "網路查價"};
-  const sg = toNum(item.suggest);
-  if(sg!==null) return {price: sg, field: "建議售價（無網路查價，改用此欄）"};
-  const pr = toNum(item.price);
-  if(pr!==null) return {price: pr, field: "售價（無網路查價/建議售價，改用此欄）"};
-  return {price: null, field: ""};
-}
+var CATEGORY_LIST = ["電視", "冰箱", "冷凍櫃", "洗衣機", "窗型冷氣", "聲寶分離式冷氣室外機", "聲寶分離式冷氣室內機", "聲寶吊隱冷氣室內機", "瑞智分離式冷氣外機", "瑞智分離式冷氣內機", "瑞智窗型冷氣", "小家電"];
 
-// ---------- 登入 ----------
-function Login({ onSuccess }){
-  const [pw, setPw] = useState("");
-  const [err, setErr] = useState("");
-  const submit = () => {
-    if(pw === APP_PASSWORD){ onSuccess(); }
-    else setErr("密碼錯誤，請再試一次");
-  };
-  return (
-    <div className="login-wrap">
-      <div className="login-card">
-        <h1>網路查價系統</h1>
-        <p>比對經銷商網路售價與官方刊登價</p>
-        <input type="password" placeholder="請輸入密碼" value={pw} onChange={e=>setPw(e.target.value)} onKeyDown={e=>e.key==="Enter" && submit()} />
-        {err && <div className="err">{err}</div>}
-        <div style={{marginTop:14}}>
-          <button className="btn-primary" style={{width:"100%"}} onClick={submit}>登入</button>
-        </div>
-      </div>
-    </div>
+var CATEGORY_COLORS = {
+  "電視":      { bg: "#F3E5F5", text: "#6A1B9A", dot: "#9C27B0" },
+  "冰箱":      { bg: "#E8F5E9", text: "#2E7D32", dot: "#4CAF50" },
+  "冷凍櫃":    { bg: "#E1F5FE", text: "#0277BD", dot: "#03A9F4" },
+  "洗衣機":    { bg: "#FFF3E0", text: "#E65100", dot: "#FF9800" },
+  "窗型冷氣":  { bg: "#FCE4EC", text: "#AD1457", dot: "#EC407A" },
+  "聲寶分離式冷氣室外機": { bg: "#E8F4FD", text: "#1A6B9A", dot: "#2196F3" },
+  "聲寶分離式冷氣室內機": { bg: "#E0F7FA", text: "#00695C", dot: "#00BCD4" },
+  "聲寶吊隱冷氣室內機":   { bg: "#E8EAF6", text: "#283593", dot: "#5C6BC0" },
+  "瑞智分離式冷氣外機": { bg: "#EDE7F6", text: "#4527A0", dot: "#7E57C2" },
+  "瑞智分離式冷氣內機": { bg: "#F3E5F5", text: "#6A1B9A", dot: "#AB47BC" },
+  "瑞智窗型冷氣":       { bg: "#FFF8E1", text: "#F9A825", dot: "#FFCA28" },
+  "小家電":             { bg: "#FBE9E7", text: "#BF360C", dot: "#FF7043" }
+};
+
+var DEFAULT_THRESHOLD = {
+  "電視": 10, "冰箱": 10, "冷凍櫃": 10, "洗衣機": 10, "窗型冷氣": 5,
+  "聲寶分離式冷氣室外機": 5, "聲寶分離式冷氣室內機": 5, "聲寶吊隱冷氣室內機": 5,
+  "瑞智分離式冷氣外機": 5, "瑞智分離式冷氣內機": 5, "瑞智窗型冷氣": 5,
+  "小家電": 5
+};
+
+// ── 小元件 ────────────────────────────────────────────────────
+function ProductRow(props) {
+  var item = props.item;
+  var hasStock = item.stock > 0;
+  var dotColor = hasStock ? "#4CAF50" : "#E53935";
+  return h("div", {
+    style: {
+      display: "flex", alignItems: "center", justifyContent: "space-between",
+      padding: "10px 14px", background: "#fff", borderBottom: "1px solid #F0F0F0"
+    }
+  },
+    h("div", { style: { display: "flex", alignItems: "center", gap: 10, minWidth: 0, flex: 1 } },
+      h("span", { style: { width: 14, height: 14, borderRadius: "50%", background: dotColor, flexShrink: 0 } }),
+      h("span", { style: { fontSize: 14, fontWeight: 600, color: "#1A1A2E", wordBreak: "break-all" } }, item.model)
+    ),
+    h("span", {
+      style: { fontSize: 18, fontWeight: 800, marginLeft: 12, flexShrink: 0, color: hasStock ? "#2E7D32" : "#C62828" }
+    }, item.stock)
   );
 }
 
-// ---------- 共用：讀取 Sampo 價格表並攤平 ----------
-function useSampoOfficialPrices(){
-  const [items, setItems] = useState([]); // [{model, cat, sheetName, official, officialField, base, promo, suggest, price, webCheck}]
-  const [loading, setLoading] = useState(true);
-  const [updatedAt, setUpdatedAt] = useState(null);
+function LoginForm() {
+  var emailState = useState("");
+  var email = emailState[0], setEmail = emailState[1];
+  var pwState = useState("");
+  var pw = pwState[0], setPw = pwState[1];
+  var errState = useState("");
+  var err = errState[0], setErr = errState[1];
+  var busyState = useState(false);
+  var busy = busyState[0], setBusy = busyState[1];
 
-  useEffect(()=>{
-    const unsub = sampoDb.collection("priceList").doc("current").onSnapshot(doc=>{
-      if(doc.exists){
-        const d = doc.data();
-        setUpdatedAt(d.updatedAt || null);
-        const flat = [];
-        (d.sheets||[]).forEach(sheet=>{
-          (sheet.items||[]).forEach(it=>{
-            const off = officialPriceOf(it);
-            flat.push({
-              model: it.model,
-              cat: it.cat || sheet.name,
-              sheetName: sheet.name,
-              official: off.price,
-              officialField: off.field,
-              base: it.base, promo: it.promo, suggest: it.suggest, price: it.price, webCheck: it.webCheck
-            });
-          });
-        });
-        setItems(flat);
+  function handleLogin() {
+    if (!email || !pw) {
+      setErr("請輸入帳號與密碼");
+      return;
+    }
+    setBusy(true);
+    setErr("");
+    auth.signInWithEmailAndPassword(email, pw).then(function () {
+      setBusy(false);
+    }).catch(function () {
+      setBusy(false);
+      setErr("登入失敗，請確認帳號密碼是否正確");
+    });
+  }
+
+  return h("div", { style: { background: "#fff", borderRadius: 14, padding: 24, boxShadow: "0 1px 6px rgba(0,0,0,0.07)" } },
+    h("div", { style: { fontWeight: 800, fontSize: 16, color: "#1A237E", marginBottom: 4 } }, "🔒 管理者登入"),
+    h("div", { style: { fontSize: 12, color: "#888", marginBottom: 16 } }, "請輸入管理者帳號密碼以進入管理頁面"),
+    h("input", {
+      type: "email",
+      value: email,
+      onChange: function (e) { setEmail(e.target.value); },
+      placeholder: "電子郵件",
+      style: {
+        width: "100%", boxSizing: "border-box", padding: "11px 12px", marginBottom: 10,
+        borderRadius: 10, border: "1.5px solid #E0E0E0", fontSize: 14, outline: "none", fontFamily: "inherit"
       }
-      setLoading(false);
-    }, ()=>setLoading(false));
-    return unsub;
-  },[]);
-
-  return { items, loading, updatedAt };
-}
-
-// ---------- 官方刊登價 Tab（唯讀，同步自 Sampo）----------
-function OfficialPricesTab(){
-  const { items, loading, updatedAt } = useSampoOfficialPrices();
-  const [q, setQ] = useState("");
-  const filtered = items.filter(i => i.model.toLowerCase().includes(q.toLowerCase()));
-  const missingCount = items.filter(i=>i.official===null).length;
-
-  return (
-    <div>
-      <div className="card">
-        <h2>官方刊登價<span className="src-tag">同步自 Sampo 價格表</span></h2>
-        <p className="muted" style={{marginTop:-4}}>
-          共 {items.length} 個機型{updatedAt ? "，價格表最後更新：" + updatedAt : ""}
-          {missingCount>0 && <span style={{color:"var(--warn)"}}>，其中 {missingCount} 筆沒有任何價格欄位可用</span>}
-        </p>
-        <p className="muted" style={{marginTop:4}}>
-          比對基準優先用「網路查價」欄，若該機型沒有網路查價則自動改用建議售價或售價（會標註使用哪一欄）。
-        </p>
-        <p className="muted" style={{marginTop:4}}>
-          資料是唯讀的，要更新請到 Sampo 系統的「管理」頁重新上傳 💲 價格表 / ❄️ 冷氣價格表。
-        </p>
-      </div>
-      <div className="card">
-        <input className="search" placeholder="搜尋機型..." value={q} onChange={e=>setQ(e.target.value)} />
-        {loading ? <div className="empty">載入中...</div> :
-         filtered.length===0 ? <div className="empty">尚無資料，請先到 Sampo 系統上傳價格表</div> :
-        <table>
-          <thead><tr><th>機型</th><th>分類</th><th>官方刊登價</th></tr></thead>
-          <tbody>
-            {filtered.map(i=>(
-              <tr key={i.model}>
-                <td>{i.model}</td>
-                <td>{i.cat}</td>
-                <td>
-                  {i.official===null ? <span className="pill pill-muted">無資料</span> :
-                    <>{fmtMoney(i.official)}<div className="muted">{i.officialField}</div></>}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>}
-      </div>
-    </div>
+    }),
+    h("input", {
+      type: "password",
+      value: pw,
+      onChange: function (e) { setPw(e.target.value); },
+      placeholder: "密碼",
+      onKeyDown: function (e) { if (e.key === "Enter") handleLogin(); },
+      style: {
+        width: "100%", boxSizing: "border-box", padding: "11px 12px", marginBottom: 14,
+        borderRadius: 10, border: "1.5px solid #E0E0E0", fontSize: 14, outline: "none", fontFamily: "inherit"
+      }
+    }),
+    err ? h("div", { style: { color: "#C62828", fontSize: 12, marginBottom: 10 } }, err) : null,
+    h("button", {
+      onClick: handleLogin,
+      disabled: busy,
+      style: {
+        width: "100%", padding: "12px", borderRadius: 10, border: "none",
+        background: "#1A237E", color: "#fff", fontWeight: 700, fontSize: 14,
+        cursor: busy ? "not-allowed" : "pointer", fontFamily: "inherit"
+      }
+    }, busy ? "登入中…" : "登入")
   );
 }
 
-// ---------- 經銷商 Tab ----------
-function DealersTab(){
-  const [dealers, setDealers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [form, setForm] = useState({name:"", area:"", url:"", platform:"自架網站"});
+function AdjustPanel(props) {
+  var data = props.data;
+  var onApply = props.onApply;
 
-  useEffect(()=>{
-    const unsub = db.collection("dealers").orderBy("name").onSnapshot(snap=>{
-      setDealers(snap.docs.map(d=>({id:d.id, ...d.data()})));
-      setLoading(false);
+  var searchState = useState("");
+  var search = searchState[0], setSearch = searchState[1];
+  var selectedState = useState(null);
+  var selected = selectedState[0], setSelected = selectedState[1];
+  var deltaState = useState("");
+  var delta = deltaState[0], setDelta = deltaState[1];
+  var msgState = useState("");
+  var msg = msgState[0], setMsg = msgState[1];
+  var busyState = useState(false);
+  var busy = busyState[0], setBusy = busyState[1];
+
+  var q = search.trim().toLowerCase();
+  var matches = q ? data.filter(function (it) { return it.model.toLowerCase().indexOf(q) !== -1; }).slice(0, 8) : [];
+
+  function applyAdjust() {
+    var d = Number(delta);
+    if (!selected || !delta || isNaN(d) || d === 0) {
+      setMsg("請選擇型號並輸入非零的調整數量");
+      return;
+    }
+    setBusy(true);
+    setMsg("");
+    onApply(selected.model, d).then(function (newStock) {
+      setBusy(false);
+      setMsg("✅ 已調整「" + selected.model + "」，最新庫存：" + newStock);
+      setDelta("");
+      setSelected(null);
+      setSearch("");
+    }).catch(function () {
+      setBusy(false);
+      setMsg("❌ 調整失敗，請稍後再試");
     });
-    return unsub;
-  },[]);
+  }
 
-  const addDealer = async () => {
-    if(!form.name.trim() || !form.url.trim()) return;
-    await db.collection("dealers").add({...form, name: form.name.trim(), url: form.url.trim(), createdAt: new Date().toISOString()});
-    setForm({name:"", area:"", url:"", platform:"自架網站"});
-  };
+  return h("div", { style: { background: "#fff", borderRadius: 14, padding: 20, boxShadow: "0 1px 6px rgba(0,0,0,0.07)" } },
+    h("div", { style: { fontWeight: 800, fontSize: 16, color: "#1A237E", marginBottom: 4 } }, "✏️ 手動調整單一型號數量"),
+    h("div", { style: { fontSize: 12, color: "#888", marginBottom: 14, lineHeight: 1.6 } },
+      "搜尋型號後輸入調整數量（正數增加、負數減少），會直接套用到查詢頁的最終庫存。下次上傳新庫存表時，調整量會被覆蓋。"
+    ),
 
-  const removeDealer = async (id) => {
-    if(!confirm("確定刪除這個經銷商？（相關查價紀錄不會自動刪除）")) return;
-    await db.collection("dealers").doc(id).delete();
-  };
+    selected
+      ? h("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "#F8F9FF", borderRadius: 8, marginBottom: 10 } },
+          h("div", null,
+            h("div", { style: { fontSize: 13, fontWeight: 700, color: "#1A237E" } }, selected.model),
+            h("div", { style: { fontSize: 11, color: "#888", marginTop: 2 } }, "目前庫存：" + selected.stock)
+          ),
+          h("button", {
+            onClick: function () { setSelected(null); setSearch(""); },
+            style: { fontSize: 12, color: "#C62828", border: "none", background: "none", cursor: "pointer", fontFamily: "inherit" }
+          }, "✕ 重選")
+        )
+      : h("div", { style: { position: "relative", marginBottom: 10 } },
+          h("input", {
+            value: search,
+            onChange: function (e) { setSearch(e.target.value); },
+            placeholder: "搜尋型號…",
+            style: {
+              width: "100%", boxSizing: "border-box", padding: "11px 12px",
+              borderRadius: 10, border: "1.5px solid #E0E0E0", fontSize: 14, outline: "none", fontFamily: "inherit"
+            }
+          }),
+          matches.length > 0
+            ? h("div", { style: { border: "1px solid #E0E0E0", borderRadius: 8, marginTop: 6, overflow: "hidden" } },
+                matches.map(function (it) {
+                  return h("div", {
+                    key: it.model,
+                    onClick: function () { setSelected(it); },
+                    style: {
+                      padding: "9px 12px", borderBottom: "1px solid #F0F0F0", cursor: "pointer",
+                      display: "flex", justifyContent: "space-between", fontSize: 13
+                    }
+                  },
+                    h("span", { style: { fontWeight: 600 } }, it.model),
+                    h("span", { style: { color: "#888" } }, "庫存 " + it.stock)
+                  );
+                })
+              )
+            : null
+        ),
 
-  return (
-    <div>
-      <div className="card">
-        <h2>新增經銷商</h2>
-        <div className="row">
-          <input placeholder="經銷商名稱" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} />
-          <input placeholder="區域 (如 A42B)" value={form.area} onChange={e=>setForm({...form,area:e.target.value})} />
-        </div>
-        <div className="row"><input placeholder="網址 (https://...)" value={form.url} onChange={e=>setForm({...form,url:e.target.value})} /></div>
-        <div className="row">
-          <select value={form.platform} onChange={e=>setForm({...form,platform:e.target.value})}>
-            <option>自架網站</option><option>蝦皮</option><option>PChome</option><option>momo</option><option>其他平台</option>
-          </select>
-        </div>
-        <button className="btn-primary" onClick={addDealer}>新增經銷商</button>
-      </div>
+    selected ? h("input", {
+      type: "number",
+      value: delta,
+      onChange: function (e) { setDelta(e.target.value); },
+      placeholder: "調整數量，例如 5 或 -3",
+      style: {
+        width: "100%", boxSizing: "border-box", padding: "11px 12px", marginBottom: 10,
+        borderRadius: 10, border: "1.5px solid #E0E0E0", fontSize: 14, outline: "none", fontFamily: "inherit"
+      }
+    }) : null,
 
-      <div className="card">
-        <h2>經銷商清單（{dealers.length}）</h2>
-        {loading ? <div className="empty">載入中...</div> :
-         dealers.length===0 ? <div className="empty">尚無經銷商，請先新增</div> :
-        <table>
-          <thead><tr><th>名稱</th><th>區域</th><th>平台</th><th></th></tr></thead>
-          <tbody>
-            {dealers.map(d=>(
-              <tr key={d.id}>
-                <td><div>{d.name}</div><a className="link" href={d.url} target="_blank" rel="noopener">開啟網址 ↗</a></td>
-                <td>{d.area||"-"}</td>
-                <td><span className="pill pill-muted">{d.platform}</span></td>
-                <td style={{textAlign:"right"}}><button className="btn-danger btn-sm" onClick={()=>removeDealer(d.id)}>刪除</button></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>}
-      </div>
-    </div>
+    msg ? h("div", { style: { fontSize: 12, marginBottom: 10, color: msg.indexOf("✅") === 0 ? "#2E7D32" : "#C62828" } }, msg) : null,
+
+    selected ? h("button", {
+      onClick: applyAdjust,
+      disabled: busy,
+      style: {
+        width: "100%", padding: "12px", borderRadius: 10, border: "none",
+        background: "#1A237E", color: "#fff", fontWeight: 700, fontSize: 14,
+        cursor: busy ? "not-allowed" : "pointer", fontFamily: "inherit"
+      }
+    }, busy ? "套用中…" : "套用調整") : null
   );
 }
 
-// ---------- 查價比對 Tab ----------
-function CheckTab(){
-  const [dealers, setDealers] = useState([]);
-  const { items: officials } = useSampoOfficialPrices();
-  const [selectedDealer, setSelectedDealer] = useState("");
-  const [selectedModel, setSelectedModel] = useState("");
-  const [observedPrice, setObservedPrice] = useState("");
-  const [note, setNote] = useState("");
-  const [recentChecks, setRecentChecks] = useState([]);
 
-  useEffect(()=>{
-    const u1 = db.collection("dealers").orderBy("name").onSnapshot(snap=>{
-      setDealers(snap.docs.map(d=>({id:d.id,...d.data()})));
+function AdjustedList(props) {
+  var data = props.data;
+  var onApply = props.onApply;
+  var busyState = useState(null);
+  var busy = busyState[0], setBusy = busyState[1];
+
+  var adjusted = data.filter(function (it) { return it.adjustment && it.adjustment !== 0; });
+
+  function clearAdjust(model) {
+    setBusy(model);
+    onApply(model, 0, "set").then(function () {
+      setBusy(null);
+    }).catch(function () {
+      setBusy(null);
     });
-    return u1;
-  },[]);
+  }
 
-  useEffect(()=>{
-    if(!selectedDealer) { setRecentChecks([]); return; }
-    const unsub = db.collection("priceChecks")
-      .where("dealerId","==",selectedDealer)
-      .orderBy("checkedAt","desc")
-      .limit(20)
-      .onSnapshot(snap=>{
-        setRecentChecks(snap.docs.map(d=>({id:d.id,...d.data()})));
-      });
-    return unsub;
-  },[selectedDealer]);
-
-  const dealer = dealers.find(d=>d.id===selectedDealer);
-  const official = officials.find(o=>o.model===selectedModel);
-
-  const exportDealerReport = async () => {
-    if(!selectedDealer || !dealer) return;
-    const snap = await db.collection("priceChecks").where("dealerId","==",selectedDealer).orderBy("checkedAt","desc").get();
-    const latestByModel = new Map();
-    snap.docs.forEach(d=>{
-      const c = d.data();
-      if(!latestByModel.has(c.model)) latestByModel.set(c.model, c);
-    });
-    const rows = Array.from(latestByModel.values()).sort((a,b)=>(a.model||"").localeCompare(b.model||""));
-    if(rows.length===0){ alert("這個經銷商還沒有任何查價紀錄"); return; }
-    const header = ["機型", "網路查價", dealer.name + "露出價", "差異"];
-    const aoa = [header, ...rows.map(c=>[c.model, c.officialPrice, c.observedPrice, c.diff])];
-    const ws = XLSX.utils.aoa_to_sheet(aoa);
-    ws["!cols"] = [{wch:16},{wch:12},{wch:14},{wch:10}];
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "露出價差異");
-    XLSX.writeFile(wb, `${dealer.name}露出價差異.xlsx`);
-  };
-
-  const submitCheck = async () => {
-    if(!selectedDealer || !selectedModel || observedPrice==="") return;
-    const officialPrice = official ? official.official : null;
-    const diff = officialPrice!==null ? Number(observedPrice) - officialPrice : null;
-    await db.collection("priceChecks").add({
-      dealerId: selectedDealer,
-      dealerName: dealer ? dealer.name : "",
-      dealerArea: dealer ? (dealer.area||"") : "",
-      model: selectedModel,
-      officialPrice,
-      officialField: official ? official.officialField : "",
-      observedPrice: Number(observedPrice),
-      diff,
-      note: note.trim(),
-      checkedAt: new Date().toISOString(),
-      source: "manual"
-    });
-    setObservedPrice(""); setNote("");
-  };
-
-  return (
-    <div>
-      <div className="card">
-        <h2>選擇經銷商</h2>
-        <select value={selectedDealer} onChange={e=>setSelectedDealer(e.target.value)}>
-          <option value="">請選擇經銷商</option>
-          {dealers.map(d=><option key={d.id} value={d.id}>{d.name}（{d.area||"-"}）</option>)}
-        </select>
-        {dealer && <div style={{marginTop:8}}><a className="link" href={dealer.url} target="_blank" rel="noopener">開啟 {dealer.name} 網站查看售價 ↗</a></div>}
-      </div>
-
-      {selectedDealer && (
-        <div className="card">
-          <h2>輸入查到的售價</h2>
-          <div className="row">
-            <select value={selectedModel} onChange={e=>setSelectedModel(e.target.value)}>
-              <option value="">選擇機型</option>
-              {officials.map(o=><option key={o.model} value={o.model}>{o.model}</option>)}
-            </select>
-          </div>
-          {selectedModel && (
-            <p className="muted" style={{marginTop:-4}}>
-              官方刊登價：{official && official.official!==null ? fmtMoney(official.official)+"（"+official.officialField+"）" : "尚無資料"}
-            </p>
-          )}
-          <div className="row"><input placeholder="網站上看到的售價" type="number" value={observedPrice} onChange={e=>setObservedPrice(e.target.value)} /></div>
-          <div className="row"><input placeholder="備註（選填，如活動特價、缺貨等）" value={note} onChange={e=>setNote(e.target.value)} /></div>
-          <button className="btn-primary" onClick={submitCheck} disabled={!selectedModel || observedPrice===""}>送出比對</button>
-        </div>
-      )}
-
-      {selectedDealer && (
-        <div className="card">
-          <div className="toolbar">
-            <h2>{dealer ? dealer.name : ""} 最近查價紀錄</h2>
-            <button className="btn-export btn-sm" onClick={exportDealerReport}>📥 下載差異報表</button>
-          </div>
-          {recentChecks.length===0 ? <div className="empty">尚無紀錄</div> :
-          <table>
-            <thead><tr><th>機型</th><th>官方價</th><th>查到價</th><th>差異</th></tr></thead>
-            <tbody>
-              {recentChecks.map(c=>(
-                <tr key={c.id}>
-                  <td>{c.model}</td>
-                  <td>{fmtMoney(c.officialPrice)}</td>
-                  <td>{fmtMoney(c.observedPrice)}</td>
-                  <td>
-                    {c.diff===null ? <span className="diff-zero">-</span> :
-                     c.diff===0 ? <span className="diff-zero">一致</span> :
-                     c.diff<0 ? <span className="diff-neg">{fmtMoney(c.diff)}</span> :
-                     <span className="diff-pos">+{fmtMoney(c.diff)}</span>}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>}
-        </div>
-      )}
-    </div>
+  return h("div", { style: { background: "#fff", borderRadius: 14, padding: 20, boxShadow: "0 1px 6px rgba(0,0,0,0.07)" } },
+    h("div", { style: { fontWeight: 700, fontSize: 14, color: "#333", marginBottom: 4 } }, "📝 已手動調整的型號"),
+    h("div", { style: { fontSize: 11, color: "#888", marginBottom: 14 } }, "顯示「原始庫存 + 調整量 = 最終庫存」，可隨時清除調整"),
+    adjusted.length === 0
+      ? h("div", { style: { textAlign: "center", padding: "20px", color: "#AAAAAA", fontSize: 13 } }, "目前沒有任何手動調整")
+      : h("div", { style: { display: "flex", flexDirection: "column", gap: 10 } },
+          adjusted.map(function (it) {
+            var base = it.baseStock !== undefined ? it.baseStock : it.stock;
+            var adj = it.adjustment || 0;
+            return h("div", {
+              key: it.model,
+              style: { padding: "12px 14px", background: "#F8F9FF", borderRadius: 10, border: "1px solid #E8EAF6" }
+            },
+              h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 } },
+                h("span", { style: { fontSize: 13, fontWeight: 700, color: "#1A237E" } }, it.model),
+                h("button", {
+                  onClick: function () { clearAdjust(it.model); },
+                  disabled: busy === it.model,
+                  style: {
+                    fontSize: 11, color: "#C62828", border: "1px solid #FFCDD2", background: "#fff",
+                    borderRadius: 6, padding: "3px 10px", cursor: "pointer", fontFamily: "inherit"
+                  }
+                }, busy === it.model ? "清除中…" : "清除調整")
+              ),
+              h("div", { style: { fontSize: 13, color: "#555", fontFamily: "monospace" } },
+                "原始 " + base + "  " + (adj > 0 ? "+ " + adj : "- " + Math.abs(adj)) + "  =  ",
+                h("span", { style: { fontWeight: 800, color: "#2E7D32" } }, it.stock)
+              )
+            );
+          })
+        )
   );
 }
 
-// ---------- 總覽 Tab ----------
-function DashboardTab(){
-  const [checks, setChecks] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState("all"); // all | mismatch | ok
 
-  useEffect(()=>{
-    const unsub = db.collection("priceChecks").orderBy("checkedAt","desc").limit(500).onSnapshot(snap=>{
-      setChecks(snap.docs.map(d=>({id:d.id,...d.data()})));
+// ============ 經銷商系統元件 ============
+
+// 經銷商登入身分判斷：回傳 {role, code} 或 null
+function resolveDealerIdentity(account) {
+  var acc = String(account).trim().toUpperCase();
+  // 區域主管：A42 或 A42B~E
+  if (acc === "A42") return { role: "hq", code: "A42", label: "台中分公司二課" };
+  if (DEALER_AREAS[acc]) return { role: "area", code: acc, label: acc + " 區（業務:" + DEALER_AREAS[acc].sales + "）" };
+  // 經銷商：完整代號比對（大小寫不敏感）
+  for (var i = 0; i < DEALER_LIST.length; i++) {
+    if (DEALER_LIST[i].code.toUpperCase() === acc) {
+      return { role: "dealer", code: DEALER_LIST[i].code, label: DEALER_LIST[i].code + " " + DEALER_LIST[i].name, area: DEALER_LIST[i].area };
+    }
+  }
+  return null;
+}
+
+var DEALER_PASSWORD = "sampo1313";
+
+// 經銷商系統登入表單
+function DealerLogin(props) {
+  var onLogin = props.onLogin;
+  var accState = useState("");
+  var acc = accState[0], setAcc = accState[1];
+  var pwState = useState("");
+  var pw = pwState[0], setPw = pwState[1];
+  var errState = useState("");
+  var err = errState[0], setErr = errState[1];
+
+  function doLogin() {
+    var id = resolveDealerIdentity(acc);
+    if (!id) { setErr("查無此帳號，請確認經銷商代號或區域代號"); return; }
+    if (pw !== DEALER_PASSWORD) { setErr("密碼錯誤"); return; }
+    setErr("");
+    onLogin(id);
+  }
+
+  return h("div", { style: { background: "#fff", borderRadius: 14, padding: 24, boxShadow: "0 1px 6px rgba(0,0,0,0.07)" } },
+    h("div", { style: { fontWeight: 800, fontSize: 16, color: "#1A237E", marginBottom: 4 } }, props.title || "🏪 經銷商店庫登入"),
+    h("div", { style: { fontSize: 12, color: "#888", marginBottom: 16, lineHeight: 1.6 } }, "輸入您的經銷商代號（例如 L0303-4503）。區域主管請輸入區域代號（A42B~E）。"),
+    h("input", {
+      value: acc, onChange: function (e) { setAcc(e.target.value); },
+      placeholder: "經銷商代號 / 區域代號",
+      style: { width: "100%", boxSizing: "border-box", padding: "11px 12px", marginBottom: 10, borderRadius: 10, border: "1.5px solid #E0E0E0", fontSize: 14, outline: "none", fontFamily: "inherit" }
+    }),
+    h("input", {
+      type: "password", value: pw, onChange: function (e) { setPw(e.target.value); },
+      placeholder: "密碼", onKeyDown: function (e) { if (e.key === "Enter") doLogin(); },
+      style: { width: "100%", boxSizing: "border-box", padding: "11px 12px", marginBottom: 14, borderRadius: 10, border: "1.5px solid #E0E0E0", fontSize: 14, outline: "none", fontFamily: "inherit" }
+    }),
+    err ? h("div", { style: { color: "#C62828", fontSize: 12, marginBottom: 10 } }, err) : null,
+    h("button", {
+      onClick: doLogin,
+      style: { width: "100%", padding: "12px", borderRadius: 10, border: "none", background: "#1A237E", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }
+    }, "登入")
+  );
+}
+
+// 經銷商填庫存介面
+function DealerStockForm(props) {
+  var identity = props.identity;  // {role:'dealer', code, label, area}
+  var stockState = useState(null);  // {model: qty}
+  var stock = stockState[0], setStock = stockState[1];
+  var customState = useState({});  // {category: [自訂型號]}
+  var custom = customState[0], setCustom = customState[1];
+  var loadingState = useState(true);
+  var loading = loadingState[0], setLoading = loadingState[1];
+  var savingState = useState(false);
+  var saving = savingState[0], setSaving = savingState[1];
+  var msgState = useState("");
+  var msg = msgState[0], setMsg = msgState[1];
+  var openCatState = useState(null);
+  var openCat = openCatState[0], setOpenCat = openCatState[1];
+
+  useEffect(function () {
+    DEALER_STOCK_COL.doc(identity.code).get().then(function (doc) {
+      var data = doc.exists ? doc.data() : {};
+      setStock(data.stock || {});
+      setCustom(data.customModels || {});
+      setLoading(false);
+    }).catch(function () {
+      setStock({});
+      setCustom({});
       setLoading(false);
     });
-    return unsub;
-  },[]);
+  }, [identity.code]);
 
-  // 每個 經銷商+機型 只取最新一筆
-  const latestByKey = useMemo(()=>{
-    const map = new Map();
-    checks.forEach(c=>{
-      const key = c.dealerId + "__" + c.model;
-      if(!map.has(key)) map.set(key, c);
+  function setQty(model, val) {
+    var n = val === "" ? "" : Math.max(0, parseInt(val, 10) || 0);
+    var next = Object.assign({}, stock);
+    next[model] = n;
+    setStock(next);
+  }
+
+  function addCustomModel(cat) {
+    var model = prompt("輸入要新增的「" + cat + "」型號");
+    if (!model) return;
+    model = model.trim();
+    if (!model) return;
+    // 檢查是否已存在（內建或自訂）
+    var builtin = DEALER_PRODUCTS[cat] || [];
+    var existing = builtin.concat(custom[cat] || []);
+    if (existing.indexOf(model) !== -1) { alert("此型號已存在"); return; }
+    var next = Object.assign({}, custom);
+    next[cat] = (next[cat] || []).concat([model]);
+    setCustom(next);
+  }
+
+  function delCustomModel(cat, model) {
+    var next = Object.assign({}, custom);
+    next[cat] = (next[cat] || []).filter(function (m) { return m !== model; });
+    setCustom(next);
+    // 同時清掉該型號的庫存值
+    var s = Object.assign({}, stock);
+    delete s[model];
+    setStock(s);
+  }
+
+  function saveAll() {
+    setSaving(true);
+    setMsg("");
+    var clean = {};
+    Object.keys(stock).forEach(function (k) {
+      clean[k] = stock[k] === "" ? 0 : stock[k];
     });
-    return Array.from(map.values());
-  },[checks]);
+    var now = new Date().toLocaleString("zh-TW", { hour12: false });
+    DEALER_STOCK_COL.doc(identity.code).set({
+      code: identity.code, area: identity.area || "", stock: clean, customModels: custom, updatedAt: now
+    }).then(function () {
+      setSaving(false);
+      setMsg("✅ 已儲存店面庫存（" + now + "）");
+    }).catch(function () {
+      setSaving(false);
+      setMsg("❌ 儲存失敗，請稍後再試");
+    });
+  }
 
-  const filtered = latestByKey.filter(c=>{
-    if(filter==="mismatch") return c.diff!==0 && c.diff!==null;
-    if(filter==="ok") return c.diff===0;
-    return true;
+  if (loading) return h("div", { style: { textAlign: "center", padding: "40px", color: "#AAA" } }, "載入中…");
+
+  var cats = Object.keys(DEALER_PRODUCTS);
+  var catBlocks = cats.map(function (cat) {
+    var builtinModels = DEALER_PRODUCTS[cat];
+    var customModels = custom[cat] || [];
+    var models = builtinModels.concat(customModels);
+    var isOpen = openCat === cat;
+    var filledCount = models.filter(function (m) { return stock[m] && stock[m] > 0; }).length;
+    return h("div", { key: cat, style: { background: "#fff", borderRadius: 12, marginBottom: 10, overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" } },
+      h("div", {
+        onClick: function () { setOpenCat(isOpen ? null : cat); },
+        style: { padding: "14px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", background: isOpen ? "#F8F9FF" : "#fff" }
+      },
+        h("span", { style: { fontWeight: 700, fontSize: 15, color: "#1A237E" } }, cat + "（" + models.length + "）"),
+        h("span", { style: { fontSize: 12, color: "#888" } }, "已填 " + filledCount + " 　" + (isOpen ? "▲" : "▼"))
+      ),
+      isOpen ? h("div", { style: { borderTop: "1px solid #F0F0F0" } },
+        models.map(function (m) {
+          var isCustom = customModels.indexOf(m) !== -1;
+          return h("div", { key: m, style: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 16px", borderBottom: "1px solid #F5F5F5" } },
+            h("span", { style: { fontSize: 13, color: "#333", flex: 1, wordBreak: "break-all" } },
+              m, isCustom ? h("span", { style: { fontSize: 10, color: "#3949AB", background: "#EEF0FB", borderRadius: 4, padding: "1px 5px", marginLeft: 6 } }, "新增") : null),
+            h("div", { style: { display: "flex", alignItems: "center", gap: 6 } },
+              h("input", {
+                type: "number", min: "0",
+                value: stock[m] === undefined ? "" : stock[m],
+                onChange: function (e) { setQty(m, e.target.value); },
+                placeholder: "0",
+                style: { width: 70, textAlign: "center", padding: "7px 8px", borderRadius: 8, border: "1.5px solid #E0E0E0", fontSize: 14, outline: "none", fontFamily: "inherit" }
+              }),
+              isCustom ? h("button", { onClick: function () { delCustomModel(cat, m); }, style: { fontSize: 14, color: "#C62828", border: "none", background: "none", cursor: "pointer", padding: "0 2px" } }, "✕") : null
+            )
+          );
+        }),
+        h("button", {
+          onClick: function () { addCustomModel(cat); },
+          style: { width: "100%", padding: "10px", border: "none", borderTop: "1px solid #F0F0F0", background: "#fff", color: "#3949AB", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }
+        }, "＋ 新增型號")
+      ) : null
+    );
   });
 
-  const mismatchCount = latestByKey.filter(c=>c.diff!==0 && c.diff!==null).length;
+  return h("div", null,
+    props.hideHeader
+      ? h("div", { style: { background: "#fff", borderRadius: 12, padding: "14px 16px", marginBottom: 12, boxShadow: "0 1px 4px rgba(0,0,0,0.06)" } },
+          h("div", { style: { fontSize: 15, fontWeight: 800, color: "#1A237E" } }, identity.label)
+        )
+      : h("div", { style: { background: "#fff", borderRadius: 12, padding: "12px 16px", marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" } },
+          h("div", null,
+            h("div", { style: { fontSize: 11, color: "#888" } }, "目前登入店面"),
+            h("div", { style: { fontSize: 14, fontWeight: 700, color: "#1A237E" } }, identity.label)
+          ),
+          h("button", {
+            onClick: props.onLogout,
+            style: { padding: "6px 14px", borderRadius: 8, border: "1.5px solid #E0E0E0", background: "#fff", color: "#C62828", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }
+          }, "登出")
+        ),
+    h("div", { style: { fontSize: 12, color: "#888", marginBottom: 12, lineHeight: 1.6, padding: "0 4px" } }, "點各分類展開後填入店面庫存數量，填好後按底部「儲存」。未填的型號預設為 0。"),
+    catBlocks,
+    msg ? h("div", { style: { padding: "10px 14px", borderRadius: 8, marginBottom: 10, fontSize: 13, fontWeight: 600, background: msg.indexOf("✅") === 0 ? "#E8F5E9" : "#FFEBEE", color: msg.indexOf("✅") === 0 ? "#2E7D32" : "#C62828" } }, msg) : null,
+    h("button", {
+      onClick: saveAll, disabled: saving,
+      style: { width: "100%", padding: "14px", borderRadius: 10, border: "none", background: "#1A237E", color: "#fff", fontWeight: 700, fontSize: 15, cursor: saving ? "not-allowed" : "pointer", fontFamily: "inherit", marginBottom: 30 }
+    }, saving ? "儲存中…" : "💾 儲存店面庫存")
+  );
+}
 
-  const exportExcel = () => {
-    const rows = latestByKey
-      .slice()
-      .sort((a,b)=> (a.dealerName||"").localeCompare(b.dealerName||"", "zh-Hant"))
-      .map(c=>({
-        "經銷商": c.dealerName || "",
-        "區域": c.dealerArea || "",
-        "機型": c.model || "",
-        "官方刊登價": c.officialPrice===null || c.officialPrice===undefined ? "" : c.officialPrice,
-        "刊登價來源欄位": c.officialField || "",
-        "經銷商網路售價": c.observedPrice===null || c.observedPrice===undefined ? "" : c.observedPrice,
-        "差異(售價-官方價)": c.diff===null || c.diff===undefined ? "" : c.diff,
-        "狀態": c.diff===null || c.diff===undefined ? "未知" : c.diff===0 ? "一致" : c.diff<0 ? "低於刊登價" : "高於刊登價",
-        "查價時間": c.checkedAt || "",
-        "備註": c.note || ""
-      }));
+// 區域主管 / 管理者彙整檢視
+function DealerAreaView(props) {
+  var identity = props.identity;  // {role:'area'|'hq', code}
+  var allStockState = useState(null);  // {code: {stock, updatedAt}}
+  var allStock = allStockState[0], setAllStock = allStockState[1];
+  var loadingState = useState(true);
+  var loading = loadingState[0], setLoading = loadingState[1];
+  var selectedState = useState(null);  // 選中要看哪家經銷商
+  var selected = selectedState[0], setSelected = selectedState[1];
+  var searchState = useState("");
+  var searchInput = searchState[0], setSearchInput = searchState[1];
 
-    const ws = XLSX.utils.json_to_sheet(rows);
-    ws["!cols"] = [
-      {wch:14},{wch:8},{wch:20},{wch:12},{wch:20},{wch:14},{wch:14},{wch:12},{wch:20},{wch:20}
-    ];
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "查價差異報告");
-    const today = new Date().toISOString().slice(0,10);
-    XLSX.writeFile(wb, `網路查價差異報告_${today}.xlsx`);
+  useEffect(function () {
+    DEALER_STOCK_COL.get().then(function (snap) {
+      var map = {};
+      snap.forEach(function (doc) { map[doc.id] = doc.data(); });
+      setAllStock(map);
+      setLoading(false);
+    }).catch(function () {
+      setAllStock({});
+      setLoading(false);
+    });
+  }, []);
+
+  // 決定這個身分能看哪些經銷商
+  var visibleDealers = DEALER_LIST.filter(function (d) {
+    if (identity.role === "hq") return true;        // A42 看全部
+    if (identity.role === "area") return d.area === identity.code;  // 區域看自己區
+    return false;
+  });
+
+  if (loading) return h("div", { style: { textAlign: "center", padding: "40px", color: "#AAA" } }, "載入中…");
+
+  // 若選了某家經銷商，顯示可編輯的填庫存介面（區域主管/總部可代為調整）
+  if (selected) {
+    var dealerIdentity = {
+      role: "dealer",
+      code: selected.code,
+      label: selected.code + " " + selected.name + "（由" + (identity.role === "hq" ? "總管理" : identity.code + "區") + "代為調整）",
+      area: selected.area
+    };
+    return h("div", null,
+      h("button", {
+        onClick: function () { setSelected(null); },
+        style: { marginBottom: 12, padding: "8px 14px", borderRadius: 8, border: "1.5px solid #E0E0E0", background: "#fff", color: "#1A237E", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }
+      }, "← 返回列表"),
+      h(DealerStockForm, { identity: dealerIdentity, hideHeader: true })
+    );
+  }
+
+  // 已填庫存、且在可見範圍內的經銷商
+  var filledDealers = [];
+  visibleDealers.forEach(function (d) {
+    if (allStock && allStock[d.code]) {
+      var rec = allStock[d.code];
+      var hasStock = rec.stock && Object.keys(rec.stock).some(function (k) { return rec.stock[k] > 0; });
+      if (hasStock) filledDealers.push(d);
+    }
+  });
+
+  // 搜尋符合的經銷商（用來新建/編輯）
+  var sq = searchInput.trim().toLowerCase();
+  var searchMatches = sq ? visibleDealers.filter(function (d) {
+    return d.code.toLowerCase().indexOf(sq) !== -1 || (d.name && d.name.toLowerCase().indexOf(sq) !== -1);
+  }).slice(0, 8) : [];
+
+  return h("div", null,
+    h("div", { style: { background: "#fff", borderRadius: 12, padding: "12px 16px", marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" } },
+      h("div", null,
+        h("div", { style: { fontSize: 11, color: "#888" } }, identity.role === "hq" ? "總管理（台中分公司二課）" : "區域主管"),
+        h("div", { style: { fontSize: 14, fontWeight: 700, color: "#1A237E" } }, identity.label)
+      ),
+      h("button", {
+        onClick: props.onLogout,
+        style: { padding: "6px 14px", borderRadius: 8, border: "1.5px solid #E0E0E0", background: "#fff", color: "#C62828", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }
+      }, "登出")
+    ),
+
+    // 搜尋建立區
+    h("div", { style: { background: "#fff", borderRadius: 12, padding: "14px 16px", marginBottom: 12, boxShadow: "0 1px 4px rgba(0,0,0,0.06)" } },
+      h("div", { style: { fontSize: 13, fontWeight: 700, color: "#1A237E", marginBottom: 8 } }, "🔍 搜尋經銷商建立/編輯庫存"),
+      h("input", {
+        value: searchInput, onChange: function (e) { setSearchInput(e.target.value); },
+        placeholder: "輸入經銷商代號或店名…",
+        style: { width: "100%", boxSizing: "border-box", padding: "11px 12px", borderRadius: 10, border: "1.5px solid #E0E0E0", fontSize: 14, outline: "none", fontFamily: "inherit" }
+      }),
+      searchMatches.length > 0 ? h("div", { style: { border: "1px solid #E0E0E0", borderRadius: 8, marginTop: 8, overflow: "hidden" } },
+        searchMatches.map(function (d) {
+          var has = allStock && allStock[d.code];
+          return h("div", { key: d.code, onClick: function () { setSelected(d); },
+            style: { padding: "10px 12px", borderBottom: "1px solid #F0F0F0", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13 } },
+            h("span", { style: { fontWeight: 600 } }, d.code + " " + d.name),
+            h("span", { style: { fontSize: 11, color: has ? "#2E7D32" : "#3949AB" } }, has ? "已填·編輯" : "＋ 建立")
+          );
+        })
+      ) : null
+    ),
+
+    // 已填列表
+    h("div", { style: { fontSize: 13, fontWeight: 700, color: "#666", padding: "4px 4px 8px" } }, "已填庫存（" + filledDealers.length + " 家）"),
+    filledDealers.length === 0
+      ? h("div", { style: { textAlign: "center", padding: "30px 20px", background: "#fff", borderRadius: 12, color: "#AAA", fontSize: 13 } }, "尚無已填庫存的經銷商，請用上方搜尋建立")
+      : h("div", { style: { borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" } },
+          filledDealers.map(function (d) {
+            var rec = allStock[d.code];
+            var filled = rec && rec.stock ? Object.keys(rec.stock).filter(function (k) { return rec.stock[k] > 0; }).length : 0;
+            return h("div", {
+              key: d.code,
+              onClick: function () { setSelected(d); },
+              style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "11px 14px", background: "#fff", borderBottom: "1px solid #F0F0F0", cursor: "pointer" }
+            },
+              h("div", { style: { minWidth: 0, flex: 1 } },
+                h("div", { style: { fontSize: 13, fontWeight: 600, color: "#1A1A2E" } }, d.code + " " + d.name),
+                h("div", { style: { fontSize: 11, color: "#2E7D32", marginTop: 1 } }, "已填 " + filled + " 項 · " + (rec.updatedAt || ""))
+              ),
+              h("span", { style: { fontSize: 16, color: "#CCC", marginLeft: 8 } }, "›")
+            );
+          })
+        )
+  );
+}
+
+// ============ 寄倉表系統 ============
+var CONSIGN_COL = db.collection("consignment");
+
+// 解析寄倉 Excel（多月份分頁）成 JSON
+function parseConsignmentWorkbook(wb) {
+  var months = [];
+  wb.SheetNames.forEach(function (sheetName) {
+    var ws = wb.Sheets[sheetName];
+    var rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+    // 找標題列（含"機型"）
+    var headerRow = -1;
+    for (var r = 0; r < Math.min(5, rows.length); r++) {
+      if (String(rows[r][0]).trim() === "機型") { headerRow = r; break; }
+    }
+    if (headerRow === -1) return;
+    var items = [];
+    for (var r2 = headerRow + 1; r2 < rows.length; r2++) {
+      var model = String(rows[r2][0] || "").trim();
+      if (!model) continue;
+      var base = parseInt(rows[r2][1], 10); if (isNaN(base)) base = 0;
+      var final = parseInt(rows[r2][13], 10); if (isNaN(final)) final = 0;
+      var moves = [];
+      for (var c = 2; c < 13; c += 2) {
+        var date = rows[r2][c], qty = rows[r2][c + 1];
+        if (date !== "" && date != null && qty !== "" && qty != null) {
+          var dstr = String(date).split(" ")[0].split("T")[0];
+          moves.push({ date: dstr, qty: String(qty) });
+        }
+      }
+      items.push({ model: model, base: base, final: final, moves: moves });
+    }
+    months.push({ month: sheetName, items: items });
+  });
+  return months;
+}
+
+// 寄倉表檢視（唯讀）
+function ConsignmentView(props) {
+  var code = props.code;  // 經銷商代號
+  var dataState = useState(null);
+  var data = dataState[0], setData = dataState[1];
+  var loadingState = useState(true);
+  var loading = loadingState[0], setLoading = loadingState[1];
+  var openMonthState = useState(null);
+  var openMonth = openMonthState[0], setOpenMonth = openMonthState[1];
+
+  useEffect(function () {
+    if (!code) { setLoading(false); return; }
+    CONSIGN_COL.doc(code).get().then(function (doc) {
+      if (doc.exists) {
+        var d = doc.data();
+        setData(d);
+        // 預設展開最後一個月
+        if (d.months && d.months.length > 0) setOpenMonth(d.months[d.months.length - 1].month);
+      }
+      setLoading(false);
+    }).catch(function () { setLoading(false); });
+  }, [code]);
+
+  if (loading) return h("div", { style: { textAlign: "center", padding: "40px", color: "#AAA" } }, "載入中…");
+  if (!data || !data.months || data.months.length === 0) {
+    return h("div", { style: { textAlign: "center", padding: "40px 20px", background: "#fff", borderRadius: 14, color: "#AAA" } },
+      h("div", { style: { fontSize: 32 } }, "📦"),
+      h("div", { style: { marginTop: 8, fontSize: 14 } }, "尚無寄倉資料"),
+      h("div", { style: { marginTop: 4, fontSize: 12 } }, "請聯繫管理者上傳寄倉明細")
+    );
+  }
+
+  return h("div", null,
+    (data.consignCode || data.updatedAt) ? h("div", { style: { fontSize: 11, color: "#888", marginBottom: 10, padding: "0 4px" } },
+      (data.consignCode ? "寄倉代號：" + data.consignCode + "　" : "") + (data.updatedAt ? "最後更新：" + data.updatedAt : "")) : null,
+    data.months.map(function (m) {
+      var isOpen = openMonth === m.month;
+      var activeItems = m.items.filter(function (it) { return it.base !== 0 || it.final !== 0 || it.moves.length > 0; });
+      return h("div", { key: m.month, style: { background: "#fff", borderRadius: 12, marginBottom: 10, overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" } },
+        h("div", {
+          onClick: function () { setOpenMonth(isOpen ? null : m.month); },
+          style: { padding: "14px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", background: isOpen ? "#F8F9FF" : "#fff" }
+        },
+          h("span", { style: { fontWeight: 700, fontSize: 15, color: "#1A237E" } }, m.month + " 寄倉明細"),
+          h("span", { style: { fontSize: 12, color: "#888" } }, activeItems.length + " 項　" + (isOpen ? "▲" : "▼"))
+        ),
+        isOpen ? h("div", { style: { borderTop: "1px solid #F0F0F0" } },
+          activeItems.length === 0
+            ? h("div", { style: { padding: "20px", textAlign: "center", color: "#AAA", fontSize: 13 } }, "本月無資料")
+            : h("div", null,
+                // 表頭
+                h("div", { style: { display: "flex", padding: "8px 16px", background: "#FAFAFA", fontSize: 11, color: "#888", fontWeight: 700, borderBottom: "1px solid #F0F0F0" } },
+                  h("span", { style: { flex: 2 } }, "機型"),
+                  h("span", { style: { flex: 1, textAlign: "center" } }, "月初結存"),
+                  h("span", { style: { flex: 1, textAlign: "center" } }, "結餘")
+                ),
+                activeItems.map(function (it) {
+                  return h("div", { key: it.model, style: { borderBottom: "1px solid #F5F5F5", padding: "9px 16px" } },
+                    h("div", { style: { display: "flex", fontSize: 13, alignItems: "center" } },
+                      h("span", { style: { flex: 2, fontWeight: 600, wordBreak: "break-all" } }, it.model),
+                      h("span", { style: { flex: 1, textAlign: "center", color: "#666" } }, it.base),
+                      h("span", { style: { flex: 1 } })
+                    ),
+                    it.moves.length ? h("div", { style: { padding: "4px 0" } },
+                      it.moves.map(function (mv, idx) {
+                        var isOut = mv.type === "out";
+                        var label = (isOut ? "出 " : "入 ") + mv.date + " (" + mv.qty + ")" + (isOut && mv.who ? " 借:" + mv.who : "");
+                        return h("span", { key: idx, style: { display: "inline-block", fontSize: 11, borderRadius: 4, padding: "2px 6px", marginRight: 4, marginTop: 2, background: isOut ? "#FFEBEE" : "#E8F5E9", color: isOut ? "#C62828" : "#2E7D32" } }, label);
+                      })
+                    ) : null,
+                    h("div", { style: { display: "flex", fontSize: 13, alignItems: "center", marginTop: it.moves.length ? 2 : 0 } },
+                      h("span", { style: { flex: 2, fontSize: 11, color: "#AAA" } }, "結餘"),
+                      h("span", { style: { flex: 1 } }),
+                      h("span", { style: { flex: 1, textAlign: "center", fontWeight: 800, color: it.final > 0 ? "#2E7D32" : "#999" } }, it.final)
+                    )
+                  );
+                })
+              )
+        ) : null
+      );
+    })
+  );
+}
+
+
+
+// ============ 價格表系統 ============
+var PRICE_COL = db.collection("priceList");
+
+// 解析價格表 Excel（多分頁，每頁欄位位置不同，用標題比對）
+// 各分頁要額外顯示在機型下方的規格欄位（用標題文字比對）
+var PRICE_SPEC_FIELDS = {
+  "影音商品": ["尺寸(mm)", "備註", "4K / 2K", "面板", "AI", "AirPlay 2", "刷新率", "聲音", "雙杜比", "雙動態", "雙娛樂", "藍芽", "Wifi", "HDMI", "USB", "台製"],
+  "冰箱": ["機體尺寸", "能效", "節能", "環保", "MIT", "容量", "顏色"],
+  "洗衣機": ["尺寸(mm)", "公斤帶", "含宅安", "智慧", "變頻", "PICO", "超震波", "省水", "節能", "環保", "MIT", "產地"],
+  "冷凍櫃": ["尺寸(mm)", "說明", "節能", "容量", "顏色"],
+  "除濕機": ["尺寸(mm)", "功能"]
+};
+
+function parsePriceWorkbook(wb) {
+  var sheets = [];
+  wb.SheetNames.forEach(function (sheetName) {
+    var ws = wb.Sheets[sheetName];
+    var rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+    // 找標題列（含"機型"）
+    var hr = -1;
+    for (var r = 0; r < Math.min(6, rows.length); r++) {
+      var rowJoined = rows[r].map(function (x) { return String(x).replace(/\n/g, ""); });
+      if (rowJoined.indexOf("機型") !== -1) { hr = r; break; }
+    }
+    if (hr === -1) return;
+    var headerRaw = rows[hr].map(function (x) { return String(x).replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").trim(); });
+    var header = rows[hr].map(function (x) { return String(x).replace(/[\r\n]+/g, ""); });
+    function findCol(names) {
+      for (var i = 0; i < header.length; i++) {
+        for (var n = 0; n < names.length; n++) {
+          if (header[i].indexOf(names[n]) !== -1) return i;
+        }
+      }
+      return -1;
+    }
+    var cModel = findCol(["機型"]);
+    var cCat = findCol(["產品別"]);
+    var cBase = findCol(["批價"]);
+    var cPromo = findCol(["本月特促", "特促"]);
+    var cSuggest = findCol(["建議售價", "建議"]);
+    var cPrice = -1;
+    for (var ip = 0; ip < header.length; ip++) { if (header[ip] === "售價") { cPrice = ip; break; } }
+
+    // 額外規格欄位（用標題文字比對）
+    var specDefs = [];
+    var wanted = PRICE_SPEC_FIELDS[sheetName];
+    if (wanted) {
+      wanted.forEach(function (key) {
+        for (var ci = 0; ci < header.length; ci++) {
+          if (ci === cModel || ci === cCat || ci === cBase || ci === cPromo || ci === cSuggest || ci === cPrice) continue;
+          if (header[ci].indexOf(key) !== -1) {
+            var dup = specDefs.some(function (s) { return s.col === ci; });
+            if (!dup) specDefs.push({ col: ci, label: headerRaw[ci] || key });
+            break;
+          }
+        }
+      });
+    } else {
+      // 沒有預先定義規格欄位的分頁（例如冷氣）：
+      // 把除了機型/產品別/批價/特促/建議售價/售價 以外、且有標題文字的欄位都自動當作規格
+      // 標題含「價」字的欄位（例如同行價、市價）不顯示在功能規格裡
+      for (var ciAuto = 0; ciAuto < header.length; ciAuto++) {
+        if (ciAuto === cModel || ciAuto === cCat || ciAuto === cBase || ciAuto === cPromo || ciAuto === cSuggest || ciAuto === cPrice) continue;
+        if (!headerRaw[ciAuto]) continue;
+        if (headerRaw[ciAuto].indexOf("價") !== -1) continue;
+        specDefs.push({ col: ciAuto, label: headerRaw[ciAuto] });
+      }
+    }
+
+    var items = [];
+    var curCat = "";
+    for (var r2 = hr + 1; r2 < rows.length; r2++) {
+      var row = rows[r2];
+      var model = String(row[cModel] || "").replace(/\n/g, " ").trim();
+      if (!model) continue;
+      var cat = cCat >= 0 ? String(row[cCat] || "").replace(/\n/g, "").trim() : "";
+      if (cat) curCat = cat;
+      function val(ci) { return ci >= 0 ? String(row[ci] || "").replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").trim() : ""; }
+      var specs = [];
+      specDefs.forEach(function (sd) {
+        var v = String(row[sd.col] || "").replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").trim();
+        if (v) specs.push({ label: sd.label, value: v });
+      });
+      items.push({
+        model: model,
+        cat: curCat,
+        base: val(cBase),
+        promo: val(cPromo),
+        suggest: val(cSuggest),
+        price: val(cPrice),
+        specs: specs
+      });
+    }
+    if (items.length > 0) sheets.push({ name: sheetName, items: items });
+  });
+  return sheets;
+}
+
+// 價格表檢視（登入後可看）
+function PriceListView() {
+  var dataState = useState(null);
+  var data = dataState[0], setData = dataState[1];
+  var loadingState = useState(true);
+  var loading = loadingState[0], setLoading = loadingState[1];
+  var openSheetState = useState(null);
+  var openSheet = openSheetState[0], setOpenSheet = openSheetState[1];
+  var searchState = useState("");
+  var search = searchState[0], setSearch = searchState[1];
+  var openSpecsState = useState({});
+  var openSpecs = openSpecsState[0], setOpenSpecs = openSpecsState[1];
+
+  function toggleSpec(key) {
+    var next = Object.assign({}, openSpecs);
+    if (next[key]) delete next[key]; else next[key] = true;
+    setOpenSpecs(next);
+  }
+
+  useEffect(function () {
+    PRICE_COL.doc("current").get().then(function (doc) {
+      if (doc.exists) {
+        var d = doc.data();
+        setData(d);
+        if (d.sheets && d.sheets.length > 0) setOpenSheet(d.sheets[0].name);
+      }
+      setLoading(false);
+    }).catch(function () { setLoading(false); });
+  }, []);
+
+  if (loading) return h("div", { style: { textAlign: "center", padding: "40px", color: "#AAA" } }, "載入中…");
+  if (!data || !data.sheets || data.sheets.length === 0) {
+    return h("div", { style: { textAlign: "center", padding: "40px 20px", background: "#fff", borderRadius: 14, color: "#AAA" } },
+      h("div", { style: { fontSize: 32 } }, "💲"),
+      h("div", { style: { marginTop: 8, fontSize: 14 } }, "尚無價格表"),
+      h("div", { style: { marginTop: 4, fontSize: 12 } }, "請聯繫管理者上傳")
+    );
+  }
+
+  var q = search.trim().toLowerCase();
+
+  return h("div", null,
+    data.updatedAt ? h("div", { style: { fontSize: 11, color: "#888", marginBottom: 10, padding: "0 4px" } }, (data.title || "價格表") + "　最後更新：" + data.updatedAt) : null,
+    h("input", {
+      value: search, onChange: function (e) { setSearch(e.target.value); },
+      placeholder: "🔍 搜尋機型…",
+      style: { width: "100%", boxSizing: "border-box", padding: "11px 12px", marginBottom: 12, borderRadius: 10, border: "1.5px solid #E0E0E0", fontSize: 14, outline: "none", fontFamily: "inherit" }
+    }),
+    data.sheets.map(function (sheet) {
+      var isOpen = openSheet === sheet.name && !q;
+      // 搜尋時全部展開並過濾
+      var items = sheet.items || [];
+      if (q) items = items.filter(function (it) { return it.model.toLowerCase().indexOf(q) !== -1; });
+      if (q && items.length === 0) return null;
+      var showItems = q || isOpen;
+      return h("div", { key: sheet.name, style: { background: "#fff", borderRadius: 12, marginBottom: 10, overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" } },
+        h("div", {
+          onClick: function () { if (!q) setOpenSheet(isOpen ? null : sheet.name); },
+          style: { padding: "14px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: q ? "default" : "pointer", background: showItems ? "#F8F9FF" : "#fff" }
+        },
+          h("span", { style: { fontWeight: 700, fontSize: 15, color: "#1A237E" } }, sheet.name),
+          h("span", { style: { fontSize: 12, color: "#888" } }, items.length + " 項" + (q ? "" : (isOpen ? " ▲" : " ▼")))
+        ),
+        showItems ? h("div", { className: "resp-grid", style: { borderTop: "1px solid #F0F0F0", padding: "4px" } },
+          items.map(function (it, idx) {
+            var modelKey = it.model.split(/[\s(（]/)[0];
+            var searchUrl = "https://www.google.com/search?tbm=isch&q=" + encodeURIComponent("SAMPO 聲寶 " + modelKey);
+            var specKey = sheet.name + "-" + idx;
+            var specOpen = !!openSpecs[specKey];
+            return h("div", { key: idx, style: { padding: "10px 12px", borderBottom: "1px solid #F5F5F5", borderRadius: 8, background: "#fff" } },
+              h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 } },
+                h("span", { style: { fontWeight: 700, fontSize: 14, color: "#1A1A2E", wordBreak: "break-all", flex: 1 } }, it.model),
+                h("a", { href: searchUrl, target: "_blank", rel: "noopener noreferrer",
+                  style: { fontSize: 11, color: "#3949AB", background: "#EEF0FB", borderRadius: 6, padding: "3px 8px", marginLeft: 6, flexShrink: 0, textDecoration: "none", fontWeight: 700, whiteSpace: "nowrap" } }, "🔍 找圖"),
+                it.cat ? h("span", { style: { fontSize: 10, color: "#888", background: "#F0F0F0", borderRadius: 4, padding: "1px 6px", marginLeft: 6, flexShrink: 0 } }, it.cat) : null
+              ),
+              h("div", { style: { display: "flex", flexWrap: "wrap", gap: 10, fontSize: 12 } },
+                it.base ? h("span", null, h("span", { style: { color: "#888" } }, "批價 "), h("span", { style: { fontWeight: 700, color: "#1A237E" } }, it.base)) : null,
+                it.promo ? h("span", null, h("span", { style: { color: "#888" } }, "特促 "), h("span", { style: { fontWeight: 700, color: "#C62828" } }, it.promo)) : null,
+                it.suggest ? h("span", null, h("span", { style: { color: "#888" } }, "建議 "), h("span", { style: { color: "#666" } }, it.suggest)) : null,
+                it.price ? h("span", null, h("span", { style: { color: "#888" } }, "售價 "), h("span", { style: { fontWeight: 700, color: "#2E7D32" } }, it.price)) : null
+              ),
+              (it.specs && it.specs.length) ? h("div", { style: { marginTop: 6, paddingTop: 6, borderTop: "1px dashed #EEE" } },
+                h("div", {
+                  onClick: function () { toggleSpec(specKey); },
+                  style: { fontSize: 11, color: "#3949AB", fontWeight: 700, cursor: "pointer", display: "inline-block" }
+                }, "規格 (" + it.specs.length + ") " + (specOpen ? "▲" : "▼")),
+                specOpen ? h("div", { style: { marginTop: 4, display: "flex", flexDirection: "column", gap: 3 } },
+                  it.specs.map(function (sp, si) {
+                    return h("div", { key: si, style: { display: "flex", fontSize: 11, lineHeight: 1.5 } },
+                      h("span", { style: { color: "#999", flexShrink: 0, minWidth: 72, marginRight: 6 } }, sp.label),
+                      h("span", { style: { color: "#555", flex: 1, wordBreak: "break-all" } }, sp.value)
+                    );
+                  })
+                ) : null
+              ) : null
+            );
+          })
+        ) : null
+      );
+    })
+  );
+}
+
+// 價格表系統容器（登入後檢視）
+function PriceListSystem() {
+  var identityState = useState(null);
+  var identity = identityState[0], setIdentity = identityState[1];
+
+  if (!identity) {
+    return h(DealerLogin, { onLogin: function (id) { setIdentity(id); }, title: "💲 價格表查詢登入" });
+  }
+  return h("div", null,
+    h("div", { style: { background: "#fff", borderRadius: 12, padding: "12px 16px", marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" } },
+      h("div", null,
+        h("div", { style: { fontSize: 11, color: "#888" } }, "價格表"),
+        h("div", { style: { fontSize: 14, fontWeight: 700, color: "#1A237E" } }, identity.label)
+      ),
+      h("button", { onClick: function () { setIdentity(null); }, style: { padding: "6px 14px", borderRadius: 8, border: "1.5px solid #E0E0E0", background: "#fff", color: "#C62828", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit" } }, "登出")
+    ),
+    h(PriceListView)
+  );
+}
+
+// 管理頁：低庫存通知設定
+var NOTIFY_COL = db.collection("settings");
+
+function NotifySettingsManager() {
+  var userIdState = useState("");
+  var userIdVal = userIdState[0], setUserIdVal = userIdState[1];
+  var savedIdState = useState("");
+  var savedId = savedIdState[0], setSavedId = savedIdState[1];
+  var loadingState = useState(true);
+  var loading = loadingState[0], setLoading = loadingState[1];
+  var msgState = useState("");
+  var msg = msgState[0], setMsg = msgState[1];
+  var busyState = useState(false);
+  var busy = busyState[0], setBusy = busyState[1];
+
+  useEffect(function () {
+    NOTIFY_COL.doc("notify").get().then(function (doc) {
+      var uid = doc.exists ? (doc.data().userId || "") : "";
+      setSavedId(uid);
+      setUserIdVal(uid);
+      setLoading(false);
+    }).catch(function () { setLoading(false); });
+  }, []);
+
+  function save() {
+    var trimmed = userIdVal.trim();
+    setBusy(true); setMsg("");
+    NOTIFY_COL.doc("notify").set({ userId: trimmed }).then(function () {
+      setBusy(false);
+      setSavedId(trimmed);
+      setMsg(trimmed ? "✅ 已儲存，低庫存查詢會通知這個 LINE 帳號" : "✅ 已清除，低庫存通知已停用");
+    }).catch(function () {
+      setBusy(false);
+      setMsg("❌ 儲存失敗，請確認 Firestore 規則已加 settings");
+    });
+  }
+
+  return h("div", { style: { background: "#fff", borderRadius: 14, padding: 20, boxShadow: "0 1px 6px rgba(0,0,0,0.07)" } },
+    h("div", { style: { fontWeight: 800, fontSize: 16, color: "#1A237E", marginBottom: 4 } }, "🔔 低庫存通知設定"),
+    h("div", { style: { fontSize: 12, color: "#888", marginBottom: 14, lineHeight: 1.6 } },
+      "當群組裡有人查詢型號、庫存量在 10 個以下（含無庫存）時，會私訊通知這裡設定的 LINE 帳號。取得自己的 LINE ID：在任何群組裡輸入「myid」，機器人會回傳你的使用者 ID，複製貼到下方。"
+    ),
+    loading
+      ? h("div", { style: { textAlign: "center", color: "#AAA", fontSize: 13, padding: "10px 0" } }, "載入中…")
+      : h(React.Fragment, null,
+          savedId
+            ? h("div", { style: { fontSize: 12, color: "#2E7D32", marginBottom: 10 } }, "目前已設定通知帳號")
+            : h("div", { style: { fontSize: 12, color: "#AAA", marginBottom: 10 } }, "目前尚未設定，不會發送通知"),
+          h("input", {
+            value: userIdVal, onChange: function (e) { setUserIdVal(e.target.value); },
+            placeholder: "貼上你的 LINE 使用者 ID（輸入 myid 取得）",
+            style: { width: "100%", boxSizing: "border-box", padding: "10px 12px", marginBottom: 10, borderRadius: 8, border: "1.5px solid #E0E0E0", fontSize: 14, outline: "none", fontFamily: "inherit" }
+          }),
+          h("button", {
+            onClick: save, disabled: busy,
+            style: { width: "100%", padding: "12px", borderRadius: 10, border: "none", background: "#1A237E", color: "#fff", fontWeight: 700, fontSize: 14, cursor: busy ? "not-allowed" : "pointer", fontFamily: "inherit" }
+          }, busy ? "儲存中…" : "💾 儲存設定")
+        ),
+    msg ? h("div", { style: { marginTop: 12, padding: "10px 14px", borderRadius: 8, fontSize: 13, fontWeight: 600, background: msg.indexOf("✅") === 0 ? "#E8F5E9" : "#FFEBEE", color: msg.indexOf("✅") === 0 ? "#2E7D32" : "#C62828" } }, msg) : null
+  );
+}
+
+// 管理頁：發送公告到所有 LINE 群組（文字 + 照片/檔案，透過 Cloud Function 中轉上傳）
+function AnnouncementManager() {
+  var textState = useState("");
+  var text = textState[0], setText = textState[1];
+  var fileState = useState(null);
+  var file = fileState[0], setFile = fileState[1];
+  var msgState = useState("");
+  var msg = msgState[0], setMsg = msgState[1];
+  var busyState = useState(false);
+  var busy = busyState[0], setBusy = busyState[1];
+  var fileRef = useRef();
+
+  function onFileChange(e) {
+    var f = e.target.files[0];
+    if (f && f.size > 8 * 1024 * 1024) {
+      setMsg("檔案過大，請控制在 8MB 以內");
+      e.target.value = "";
+      return;
+    }
+    setFile(f || null);
+    setMsg("");
+  }
+
+  function fileToBase64(f) {
+    return new Promise(function (resolve, reject) {
+      var reader = new FileReader();
+      reader.onload = function () {
+        var result = reader.result;
+        var base64 = result.split(",")[1];
+        resolve(base64);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(f);
+    });
+  }
+
+  function send() {
+    var trimmed = text.trim();
+    if (!trimmed && !file) { setMsg("請輸入公告文字或選擇要傳送的檔案/照片"); return; }
+    setBusy(true); setMsg("");
+
+    auth.currentUser.getIdToken().then(function (idToken) {
+      if (!file) {
+        return fetch(ANNOUNCEMENT_ENDPOINT, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: "Bearer " + idToken },
+          body: JSON.stringify({ text: trimmed, fileUrl: "", fileType: "" })
+        }).then(function (res) { return res.json(); });
+      }
+
+      return fileToBase64(file).then(function (base64) {
+        return fetch(UPLOAD_ENDPOINT, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: "Bearer " + idToken },
+          body: JSON.stringify({ fileName: file.name, contentType: file.type || "application/octet-stream", dataBase64: base64 })
+        });
+      }).then(function (res) { return res.json(); }).then(function (uploadData) {
+        if (!uploadData || !uploadData.ok) {
+          throw new Error(uploadData && uploadData.error ? uploadData.error : "檔案上傳失敗");
+        }
+        var isImage = file.type && file.type.indexOf("image/") === 0;
+        return auth.currentUser.getIdToken().then(function (idToken2) {
+          return fetch(ANNOUNCEMENT_ENDPOINT, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: "Bearer " + idToken2 },
+            body: JSON.stringify({ text: trimmed, fileUrl: uploadData.url, fileType: isImage ? "image" : "file" })
+          });
+        }).then(function (res) { return res.json(); });
+      });
+    }).then(function (data) {
+      setBusy(false);
+      if (data && data.ok) {
+        setMsg("✅ 已發送給 " + data.success + " / " + data.total + " 個群組");
+        setText(""); setFile(null);
+      } else {
+        setMsg("❌ 發送失敗：" + (data && data.error ? data.error : "未知錯誤"));
+      }
+    }).catch(function (err) {
+      console.error(err);
+      setBusy(false);
+      setMsg("❌ " + (err && err.message ? err.message : "發送失敗，請稍後再試"));
+    });
+  }
+
+  return h("div", { style: { background: "#fff", borderRadius: 14, padding: 20, boxShadow: "0 1px 6px rgba(0,0,0,0.07)" } },
+    h("div", { style: { fontWeight: 800, fontSize: 16, color: "#1A237E", marginBottom: 4 } }, "📢 發送公告到所有群組"),
+    h("div", { style: { fontSize: 12, color: "#888", marginBottom: 14, lineHeight: 1.6 } },
+      "公告會由「庫存小幫手」發送到白名單裡的每一個 LINE 群組。可以只打文字、只傳照片/檔案，或兩者一起送。單檔限制 8MB。"
+    ),
+    h("textarea", {
+      value: text, onChange: function (e) { setText(e.target.value); },
+      placeholder: "輸入公告內容…",
+      rows: 4,
+      style: { width: "100%", boxSizing: "border-box", padding: "10px 12px", marginBottom: 10, borderRadius: 8, border: "1.5px solid #E0E0E0", fontSize: 14, outline: "none", fontFamily: "inherit", resize: "vertical" }
+    }),
+    file ? h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: "#F8F9FF", borderRadius: 8, marginBottom: 10, fontSize: 13 } },
+      h("span", { style: { color: "#1A237E", wordBreak: "break-all" } }, "📎 " + file.name),
+      h("button", { onClick: function () { setFile(null); }, style: { fontSize: 12, color: "#C62828", border: "none", background: "none", cursor: "pointer", flexShrink: 0, marginLeft: 8 } }, "✕")
+    ) : h("button", {
+      onClick: function () { if (fileRef.current) fileRef.current.click(); },
+      style: { width: "100%", padding: "12px", borderRadius: 10, border: "2px dashed #3949AB", background: "#EEF0FB", color: "#3949AB", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit", marginBottom: 10 }
+    }, "📎 選擇照片或檔案（選填）"),
+    h("input", { ref: fileRef, type: "file", onChange: onFileChange, style: { display: "none" } }),
+    h("button", {
+      onClick: send, disabled: busy,
+      style: { width: "100%", padding: "14px", borderRadius: 10, border: "none", background: "#1A237E", color: "#fff", fontWeight: 700, fontSize: 15, cursor: busy ? "not-allowed" : "pointer", fontFamily: "inherit" }
+    }, busy ? "⏳ 發送中…" : "🚀 發送公告"),
+    msg ? h("div", { style: { marginTop: 12, padding: "10px 14px", borderRadius: 8, fontSize: 13, fontWeight: 600, background: msg.indexOf("✅") === 0 ? "#E8F5E9" : "#FFEBEE", color: msg.indexOf("✅") === 0 ? "#2E7D32" : "#C62828" } }, msg) : null
+  );
+}
+
+// 管理頁：上傳冷氣價格表（獨立按鈕，只更新冷氣分類，不覆蓋其他分類）
+function ACPriceUpload() {
+  var msgState = useState("");
+  var msg = msgState[0], setMsg = msgState[1];
+  var busyState = useState(false);
+  var busy = busyState[0], setBusy = busyState[1];
+  var fileRef = useRef();
+
+  function onFile(e) {
+    var file = e.target.files[0];
+    if (!file) return;
+    setBusy(true); setMsg("");
+    var reader = new FileReader();
+    reader.onload = function (evt) {
+      try {
+        var wb = XLSX.read(evt.target.result, { type: "binary" });
+        var newSheets = parsePriceWorkbook(wb);
+        if (!newSheets.length) { setMsg("❌ 找不到有效的冷氣價格資料（需有『機型』標題列）"); setBusy(false); return; }
+
+        PRICE_COL.doc("current").get().then(function (doc) {
+          var data = doc.exists ? doc.data() : { title: "", sheets: [] };
+          var existingSheets = data.sheets || [];
+          var newNames = newSheets.map(function (s) { return s.name; });
+          var kept = existingSheets.filter(function (s) { return newNames.indexOf(s.name) === -1; });
+          var merged = kept.concat(newSheets);
+          var now = new Date().toLocaleString("zh-TW", { hour12: false });
+          var totalItems = newSheets.reduce(function (s, sh) { return s + sh.items.length; }, 0);
+          PRICE_COL.doc("current").set({ title: data.title || "", sheets: merged, updatedAt: now }).then(function () {
+            setMsg("✅ 已更新冷氣價格表（" + newSheets.length + " 個分類，共 " + totalItems + " 項），其他分類保持不變");
+            setBusy(false);
+          }).catch(function () { setMsg("❌ 上傳失敗，請確認 Firestore 規則已加 priceList"); setBusy(false); });
+        }).catch(function () { setMsg("❌ 讀取現有價格表失敗"); setBusy(false); });
+      } catch (err) {
+        console.error(err);
+        setMsg("❌ 解析失敗，請確認 Excel 格式");
+        setBusy(false);
+      }
+    };
+    reader.readAsBinaryString(file);
+    e.target.value = "";
+  }
+
+  return h("div", { style: { background: "#fff", borderRadius: 14, padding: 20, boxShadow: "0 1px 6px rgba(0,0,0,0.07)" } },
+    h("div", { style: { fontWeight: 800, fontSize: 16, color: "#1A237E", marginBottom: 4 } }, "❄️ 上傳冷氣價格表"),
+    h("div", { style: { fontSize: 12, color: "#888", marginBottom: 14, lineHeight: 1.6 } },
+      "上傳冷氣專用價格表 Excel（需有『機型』標題列）。只會更新冷氣分頁的資料，電視/冰箱/洗衣機等其他分類不受影響。規格欄位會自動抓取 Excel 裡除了機型/批價/售價以外的所有欄位。"
+    ),
+    h("button", {
+      onClick: function () { if (fileRef.current) fileRef.current.click(); },
+      disabled: busy,
+      style: { width: "100%", padding: "14px", borderRadius: 10, border: "2px dashed #1976D2", background: busy ? "#F5F5F5" : "#E3F2FD", color: "#1565C0", fontWeight: 700, fontSize: 14, cursor: busy ? "not-allowed" : "pointer", fontFamily: "inherit" }
+    }, busy ? "⏳ 解析並上傳中…" : "📁 選擇冷氣價格表 Excel 上傳"),
+    h("input", { ref: fileRef, type: "file", accept: ".xlsx,.xls,.xlsm", onChange: onFile, style: { display: "none" } }),
+    msg ? h("div", { style: { marginTop: 12, padding: "10px 14px", borderRadius: 8, fontSize: 13, fontWeight: 600, background: msg.indexOf("✅") === 0 ? "#E8F5E9" : "#FFEBEE", color: msg.indexOf("✅") === 0 ? "#2E7D32" : "#C62828" } }, msg) : null
+  );
+}
+
+// 管理頁：上傳價格表
+function PriceListUpload() {
+  var msgState = useState("");
+  var msg = msgState[0], setMsg = msgState[1];
+  var busyState = useState(false);
+  var busy = busyState[0], setBusy = busyState[1];
+  var titleState = useState("");
+  var title = titleState[0], setTitle = titleState[1];
+  var fileRef = useRef();
+
+  function onFile(e) {
+    var file = e.target.files[0];
+    if (!file) return;
+    setBusy(true); setMsg("");
+    var reader = new FileReader();
+    reader.onload = function (evt) {
+      try {
+        var wb = XLSX.read(evt.target.result, { type: "binary" });
+        var sheets = parsePriceWorkbook(wb);
+        if (!sheets.length) { setMsg("❌ 找不到有效的價格資料（需有『機型』標題列）"); setBusy(false); return; }
+        var now = new Date().toLocaleString("zh-TW", { hour12: false });
+        var totalItems = sheets.reduce(function (s, sh) { return s + sh.items.length; }, 0);
+        PRICE_COL.doc("current").set({ title: title || file.name.replace(/\.(xlsx|xls|xlsm)$/i, ""), sheets: sheets, updatedAt: now }).then(function () {
+          setMsg("✅ 已上傳價格表（" + sheets.length + " 個分類，共 " + totalItems + " 項）");
+          setBusy(false);
+        }).catch(function () { setMsg("❌ 上傳失敗，請確認 Firestore 規則已加 priceList"); setBusy(false); });
+      } catch (err) {
+        console.error(err);
+        setMsg("❌ 解析失敗，請確認 Excel 格式");
+        setBusy(false);
+      }
+    };
+    reader.readAsBinaryString(file);
+    e.target.value = "";
+  }
+
+  return h("div", { style: { background: "#fff", borderRadius: 14, padding: 20, boxShadow: "0 1px 6px rgba(0,0,0,0.07)" } },
+    h("div", { style: { fontWeight: 800, fontSize: 16, color: "#1A237E", marginBottom: 4 } }, "💲 上傳價格表"),
+    h("div", { style: { fontSize: 12, color: "#888", marginBottom: 14, lineHeight: 1.6 } }, "上傳每月價格表 Excel（多分頁）。上傳後經銷商與業務登入「價格表」分頁即可查詢。"),
+    h("input", {
+      value: title, onChange: function (e) { setTitle(e.target.value); },
+      placeholder: "價格表標題（例如 2026年7月價格表，可留空）",
+      style: { width: "100%", boxSizing: "border-box", padding: "10px 12px", marginBottom: 12, borderRadius: 8, border: "1.5px solid #E0E0E0", fontSize: 14, outline: "none", fontFamily: "inherit" }
+    }),
+    h("button", {
+      onClick: function () { if (fileRef.current) fileRef.current.click(); },
+      disabled: busy,
+      style: { width: "100%", padding: "14px", borderRadius: 10, border: "2px dashed #3949AB", background: busy ? "#F5F5F5" : "#EEF0FB", color: "#3949AB", fontWeight: 700, fontSize: 14, cursor: busy ? "not-allowed" : "pointer", fontFamily: "inherit" }
+    }, busy ? "⏳ 解析並上傳中…" : "📁 選擇價格表 Excel 上傳"),
+    h("input", { ref: fileRef, type: "file", accept: ".xlsx,.xls,.xlsm", onChange: onFile, style: { display: "none" } }),
+    msg ? h("div", { style: { marginTop: 12, padding: "10px 14px", borderRadius: 8, fontSize: 13, fontWeight: 600, background: msg.indexOf("✅") === 0 ? "#E8F5E9" : "#FFEBEE", color: msg.indexOf("✅") === 0 ? "#2E7D32" : "#C62828" } }, msg) : null
+  );
+}
+
+
+// 管理頁：上傳寄倉 Excel 並指定經銷商
+function ConsignmentUpload() {
+  var searchState = useState("");
+  var search = searchState[0], setSearch = searchState[1];
+  var selectedState = useState(null);
+  var selected = selectedState[0], setSelected = selectedState[1];
+  var msgState = useState("");
+  var msg = msgState[0], setMsg = msgState[1];
+  var busyState = useState(false);
+  var busy = busyState[0], setBusy = busyState[1];
+  var fileRef = useRef();
+
+  var q = search.trim().toLowerCase();
+  var matches = q ? DEALER_LIST.filter(function (d) {
+    return d.code.toLowerCase().indexOf(q) !== -1 || (d.name && d.name.toLowerCase().indexOf(q) !== -1);
+  }).slice(0, 8) : [];
+
+  function onFile(e) {
+    var file = e.target.files[0];
+    if (!file || !selected) return;
+    setBusy(true); setMsg("");
+    var reader = new FileReader();
+    reader.onload = function (evt) {
+      try {
+        var wb = XLSX.read(evt.target.result, { type: "binary" });
+        var months = parseConsignmentWorkbook(wb);
+        if (!months.length) { setMsg("❌ 找不到有效的寄倉資料（需有『機型』標題列）"); setBusy(false); return; }
+        var now = new Date().toLocaleString("zh-TW", { hour12: false });
+        CONSIGN_COL.doc(selected.code).set({ code: selected.code, name: selected.name, months: months, updatedAt: now }).then(function () {
+          setMsg("✅ 已上傳「" + selected.code + " " + selected.name + "」的寄倉表（" + months.length + " 個月份）");
+          setBusy(false);
+        }).catch(function () { setMsg("❌ 上傳失敗，請稍後再試"); setBusy(false); });
+      } catch (err) {
+        console.error(err);
+        setMsg("❌ 解析失敗，請確認 Excel 格式");
+        setBusy(false);
+      }
+    };
+    reader.readAsBinaryString(file);
+    e.target.value = "";
+  }
+
+  return h("div", { style: { background: "#fff", borderRadius: 14, padding: 20, boxShadow: "0 1px 6px rgba(0,0,0,0.07)" } },
+    h("div", { style: { fontWeight: 800, fontSize: 16, color: "#1A237E", marginBottom: 4 } }, "📦 上傳經銷商寄倉表"),
+    h("div", { style: { fontSize: 12, color: "#888", marginBottom: 14, lineHeight: 1.6 } }, "先搜尋選擇經銷商，再上傳該店的寄倉 Excel（多月份分頁）。上傳後該經銷商登入「寄倉表」即可檢視。"),
+    selected
+      ? h("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "#F8F9FF", borderRadius: 8, marginBottom: 12 } },
+          h("div", null,
+            h("div", { style: { fontSize: 13, fontWeight: 700, color: "#1A237E" } }, selected.code + " " + selected.name),
+            h("div", { style: { fontSize: 11, color: "#888", marginTop: 2 } }, selected.area + " 區")
+          ),
+          h("button", { onClick: function () { setSelected(null); setSearch(""); }, style: { fontSize: 12, color: "#C62828", border: "none", background: "none", cursor: "pointer", fontFamily: "inherit" } }, "✕ 重選")
+        )
+      : h("div", { style: { position: "relative", marginBottom: 12 } },
+          h("input", { value: search, onChange: function (e) { setSearch(e.target.value); }, placeholder: "搜尋經銷商代號或店名…",
+            style: { width: "100%", boxSizing: "border-box", padding: "11px 12px", borderRadius: 10, border: "1.5px solid #E0E0E0", fontSize: 14, outline: "none", fontFamily: "inherit" } }),
+          matches.length > 0 ? h("div", { style: { border: "1px solid #E0E0E0", borderRadius: 8, marginTop: 6, overflow: "hidden" } },
+            matches.map(function (d) {
+              return h("div", { key: d.code, onClick: function () { setSelected(d); },
+                style: { padding: "9px 12px", borderBottom: "1px solid #F0F0F0", cursor: "pointer", display: "flex", justifyContent: "space-between", fontSize: 13 } },
+                h("span", { style: { fontWeight: 600 } }, d.code + " " + d.name),
+                h("span", { style: { color: "#888" } }, d.area)
+              );
+            })
+          ) : null
+        ),
+    selected ? h("button", {
+      onClick: function () { if (fileRef.current) fileRef.current.click(); },
+      disabled: busy,
+      style: { width: "100%", padding: "14px", borderRadius: 10, border: "2px dashed #3949AB", background: busy ? "#F5F5F5" : "#EEF0FB", color: "#3949AB", fontWeight: 700, fontSize: 14, cursor: busy ? "not-allowed" : "pointer", fontFamily: "inherit" }
+    }, busy ? "⏳ 解析並上傳中…" : "📁 選擇寄倉 Excel 上傳") : null,
+    h("input", { ref: fileRef, type: "file", accept: ".xlsx,.xls,.xlsm", onChange: onFile, style: { display: "none" } }),
+    msg ? h("div", { style: { marginTop: 12, padding: "10px 14px", borderRadius: 8, fontSize: 13, fontWeight: 600, background: msg.indexOf("✅") === 0 ? "#E8F5E9" : "#FFEBEE", color: msg.indexOf("✅") === 0 ? "#2E7D32" : "#C62828" } }, msg) : null
+  );
+}
+
+
+// 經銷商系統主容器
+function DealerSystem() {
+  var identityState = useState(null);
+  var identity = identityState[0], setIdentity = identityState[1];
+
+  if (!identity) {
+    return h(DealerLogin, { onLogin: function (id) { setIdentity(id); } });
+  }
+  var logout = function () { setIdentity(null); };
+  if (identity.role === "dealer") {
+    return h(DealerStockForm, { identity: identity, onLogout: logout });
+  }
+  // area 或 hq
+  return h(DealerAreaView, { identity: identity, onLogout: logout });
+}
+
+
+// 寄倉表網頁編輯器（管理者/區域主管可用）
+function ConsignmentEditor(props) {
+  var code = props.code;
+  var dealerName = props.dealerName || "";
+  var monthsState = useState(null);
+  var months = monthsState[0], setMonths = monthsState[1];
+  var consignCodeState = useState("");
+  var consignCode = consignCodeState[0], setConsignCode = consignCodeState[1];
+  var loadingState = useState(true);
+  var loading = loadingState[0], setLoading = loadingState[1];
+  var savingState = useState(false);
+  var saving = savingState[0], setSaving = savingState[1];
+  var msgState = useState("");
+  var msg = msgState[0], setMsg = msgState[1];
+  var openMonthState = useState(null);
+  var openMonth = openMonthState[0], setOpenMonth = openMonthState[1];
+
+  useEffect(function () {
+    CONSIGN_COL.doc(code).get().then(function (doc) {
+      var data = doc.exists ? doc.data() : {};
+      var m = data.months ? data.months : [];
+      setMonths(m);
+      setConsignCode(data.consignCode || "");
+      if (m.length > 0) setOpenMonth(m[m.length - 1].month);
+      setLoading(false);
+    }).catch(function () { setMonths([]); setLoading(false); });
+  }, [code]);
+
+  function clone(x) { return JSON.parse(JSON.stringify(x)); }
+
+  function addMonth() {
+    var name = prompt("輸入月份（格式 YYYY-MM，例如 2026-07）");
+    if (!name) return;
+    name = name.trim();
+    if (months.some(function (m) { return m.month === name; })) { alert("該月份已存在"); return; }
+    var next = clone(months);
+    next.push({ month: name, items: [] });
+    next.sort(function (a, b) { return a.month.localeCompare(b.month); });
+    setMonths(next);
+    setOpenMonth(name);
+  }
+
+  function delMonth(monthName) {
+    if (!confirm("確定刪除 " + monthName + " 整個月份？")) return;
+    setMonths(months.filter(function (m) { return m.month !== monthName; }));
+  }
+
+  function addModel(monthName) {
+    var model = prompt("輸入機型名稱");
+    if (!model) return;
+    model = model.trim();
+    var next = clone(months);
+    var mObj = next.find(function (m) { return m.month === monthName; });
+    if (mObj.items.some(function (it) { return it.model === model; })) { alert("該機型已存在"); return; }
+    mObj.items.push({ model: model, base: 0, final: 0, moves: [] });
+    setMonths(next);
+  }
+
+  function delModel(monthName, model) {
+    var next = clone(months);
+    var mObj = next.find(function (m) { return m.month === monthName; });
+    mObj.items = mObj.items.filter(function (it) { return it.model !== model; });
+    setMonths(next);
+  }
+
+  function recalcFinal(it) {
+    var inSum = 0, outSum = 0;
+    it.moves.forEach(function (mv) {
+      var q = parseInt(mv.qty, 10) || 0;
+      if (mv.type === "out") outSum += q; else inSum += q;
+    });
+    it.final = (parseInt(it.base, 10) || 0) + inSum - outSum;
+  }
+
+  function updateField(monthName, model, field, val) {
+    var next = clone(months);
+    var mObj = next.find(function (m) { return m.month === monthName; });
+    var it = mObj.items.find(function (x) { return x.model === model; });
+    if (field === "base") {
+      it.base = val === "" ? 0 : (parseInt(val, 10) || 0);
+      it.finalManual = false;
+      recalcFinal(it);
+    } else if (field === "final") {
+      it.final = val === "" ? 0 : (parseInt(val, 10) || 0);
+      it.finalManual = true;  // 手動覆蓋
+    }
+    setMonths(next);
+  }
+
+  function addMove(monthName, model) {
+    var next = clone(months);
+    var mObj = next.find(function (m) { return m.month === monthName; });
+    var it = mObj.items.find(function (x) { return x.model === model; });
+    it.moves.push({ date: "", qty: "", type: "in", who: "" });
+    setMonths(next);
+  }
+
+  function updateMove(monthName, model, idx, field, val) {
+    var next = clone(months);
+    var mObj = next.find(function (m) { return m.month === monthName; });
+    var it = mObj.items.find(function (x) { return x.model === model; });
+    it.moves[idx][field] = val;
+    it.finalManual = false;
+    recalcFinal(it);
+    setMonths(next);
+  }
+
+  function delMove(monthName, model, idx) {
+    var next = clone(months);
+    var mObj = next.find(function (m) { return m.month === monthName; });
+    var it = mObj.items.find(function (x) { return x.model === model; });
+    it.moves.splice(idx, 1);
+    it.finalManual = false;
+    recalcFinal(it);
+    setMonths(next);
+  }
+
+  function saveAll() {
+    setSaving(true); setMsg("");
+    var now = new Date().toLocaleString("zh-TW", { hour12: false });
+    CONSIGN_COL.doc(code).set({ code: code, name: dealerName, consignCode: consignCode, months: months, updatedAt: now }).then(function () {
+      setSaving(false); setMsg("✅ 已儲存（" + now + "）");
+    }).catch(function () { setSaving(false); setMsg("❌ 儲存失敗"); });
+  }
+
+  if (loading) return h("div", { style: { textAlign: "center", padding: "40px", color: "#AAA" } }, "載入中…");
+
+  var inputS = { padding: "6px 8px", borderRadius: 6, border: "1.5px solid #E0E0E0", fontSize: 13, outline: "none", fontFamily: "inherit", boxSizing: "border-box" };
+
+  return h("div", null,
+    h("div", { style: { background: "#fff", borderRadius: 12, padding: "14px 16px", marginBottom: 12, boxShadow: "0 1px 4px rgba(0,0,0,0.06)" } },
+      h("div", { style: { fontSize: 12, color: "#888", marginBottom: 6 } }, "寄倉代號"),
+      h("input", {
+        value: consignCode, onChange: function (e) { setConsignCode(e.target.value); },
+        placeholder: "例如 G1FM",
+        style: { width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 8, border: "1.5px solid #E0E0E0", fontSize: 14, outline: "none", fontFamily: "inherit" }
+      })
+    ),
+    h("button", {
+      onClick: addMonth,
+      style: { width: "100%", padding: "12px", borderRadius: 10, border: "2px dashed #3949AB", background: "#EEF0FB", color: "#3949AB", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit", marginBottom: 12 }
+    }, "＋ 新增月份"),
+
+    months.length === 0 ? h("div", { style: { textAlign: "center", padding: "30px", color: "#AAA", fontSize: 13 } }, "尚無月份，請先新增") : null,
+
+    months.map(function (m) {
+      var isOpen = openMonth === m.month;
+      return h("div", { key: m.month, style: { background: "#fff", borderRadius: 12, marginBottom: 10, overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" } },
+        h("div", { style: { padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", background: isOpen ? "#F8F9FF" : "#fff" } },
+          h("span", { onClick: function () { setOpenMonth(isOpen ? null : m.month); }, style: { fontWeight: 700, fontSize: 15, color: "#1A237E", cursor: "pointer", flex: 1 } }, m.month + "（" + m.items.length + " 機型）" + (isOpen ? " ▲" : " ▼")),
+          h("button", { onClick: function () { delMonth(m.month); }, style: { fontSize: 11, color: "#C62828", border: "none", background: "none", cursor: "pointer", fontFamily: "inherit" } }, "刪除月")
+        ),
+        isOpen ? h("div", { style: { borderTop: "1px solid #F0F0F0", padding: "12px 14px" } },
+          m.items.map(function (it) {
+            return h("div", { key: it.model, style: { border: "1px solid #EEE", borderRadius: 8, padding: "10px 12px", marginBottom: 10 } },
+              h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 } },
+                h("span", { style: { fontWeight: 700, fontSize: 14, color: "#1A1A2E", wordBreak: "break-all" } }, it.model),
+                h("button", { onClick: function () { delModel(m.month, it.model); }, style: { fontSize: 11, color: "#C62828", border: "none", background: "none", cursor: "pointer", fontFamily: "inherit", flexShrink: 0 } }, "✕ 刪除")
+              ),
+              h("div", { style: { display: "flex", gap: 8, marginBottom: 8 } },
+                h("div", { style: { flex: 1 } },
+                  h("div", { style: { fontSize: 11, color: "#888", marginBottom: 2 } }, "月初結存"),
+                  h("input", { type: "number", value: it.base, onChange: function (e) { updateField(m.month, it.model, "base", e.target.value); }, style: Object.assign({}, inputS, { width: "100%" }) })
+                ),
+                h("div", { style: { flex: 1 } },
+                  h("div", { style: { fontSize: 11, color: "#888", marginBottom: 2 } }, "結餘", h("span", { style: { color: "#3949AB" } }, "（自動算）")),
+                  h("input", { type: "number", value: it.final, onChange: function (e) { updateField(m.month, it.model, "final", e.target.value); }, style: Object.assign({}, inputS, { width: "100%" }) })
+                )
+              ),
+              h("div", { style: { fontSize: 11, color: "#888", marginBottom: 4 } }, "進出庫明細"),
+              it.moves.map(function (mv, idx) {
+                var isOut = mv.type === "out";
+                return h("div", { key: idx, style: { border: "1px solid #F0F0F0", borderRadius: 8, padding: "8px", marginBottom: 8 } },
+                  h("div", { style: { display: "flex", gap: 6, marginBottom: 6, alignItems: "center" } },
+                    h("button", {
+                      onClick: function () { updateMove(m.month, it.model, idx, "type", isOut ? "in" : "out"); },
+                      style: { padding: "6px 10px", borderRadius: 6, border: "none", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit", flexShrink: 0, background: isOut ? "#FFEBEE" : "#E8F5E9", color: isOut ? "#C62828" : "#2E7D32" }
+                    }, isOut ? "出庫" : "入庫"),
+                    h("input", { type: "date", value: mv.date, onChange: function (e) { updateMove(m.month, it.model, idx, "date", e.target.value); }, style: Object.assign({}, inputS, { flex: 1 }) }),
+                    h("input", { type: "number", value: mv.qty, onChange: function (e) { updateMove(m.month, it.model, idx, "qty", e.target.value); }, placeholder: "數量", style: Object.assign({}, inputS, { width: 60 }) }),
+                    h("button", { onClick: function () { delMove(m.month, it.model, idx); }, style: { fontSize: 14, color: "#C62828", border: "none", background: "none", cursor: "pointer", flexShrink: 0 } }, "✕")
+                  ),
+                  isOut ? h("input", { value: mv.who || "", onChange: function (e) { updateMove(m.month, it.model, idx, "who", e.target.value); }, placeholder: "借誰（出庫對象）", style: Object.assign({}, inputS, { width: "100%" }) }) : null
+                );
+              }),
+              h("button", { onClick: function () { addMove(m.month, it.model); }, style: { fontSize: 12, color: "#3949AB", border: "1px solid #C5CAE9", background: "#fff", borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontFamily: "inherit", marginTop: 2 } }, "＋ 加一筆進出庫")
+            );
+          }),
+          h("button", { onClick: function () { addModel(m.month); }, style: { width: "100%", padding: "10px", borderRadius: 8, border: "1.5px dashed #3949AB", background: "#fff", color: "#3949AB", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit", marginTop: 4 } }, "＋ 新增機型")
+        ) : null
+      );
+    }),
+
+    msg ? h("div", { style: { padding: "10px 14px", borderRadius: 8, margin: "10px 0", fontSize: 13, fontWeight: 600, background: msg.indexOf("✅") === 0 ? "#E8F5E9" : "#FFEBEE", color: msg.indexOf("✅") === 0 ? "#2E7D32" : "#C62828" } }, msg) : null,
+
+    h("button", {
+      onClick: saveAll, disabled: saving,
+      style: { width: "100%", padding: "14px", borderRadius: 10, border: "none", background: "#1A237E", color: "#fff", fontWeight: 700, fontSize: 15, cursor: saving ? "not-allowed" : "pointer", fontFamily: "inherit", marginTop: 8, marginBottom: 30 }
+    }, saving ? "儲存中…" : "💾 儲存寄倉表")
+  );
+}
+
+
+// 寄倉表系統容器（登入後檢視寄倉表）
+function ConsignmentSystem() {
+  var identityState = useState(null);
+  var identity = identityState[0], setIdentity = identityState[1];
+  var selectedState = useState(null);
+  var selected = selectedState[0], setSelected = selectedState[1];
+  var editModeState = useState(false);
+  var editMode = editModeState[0], setEditMode = editModeState[1];
+  var existingState = useState(null);  // 已建立寄倉的經銷商 {code: {name, consignCode, updatedAt}}
+  var existing = existingState[0], setExisting = existingState[1];
+  var searchState = useState("");
+  var searchInput = searchState[0], setSearchInput = searchState[1];
+
+  useEffect(function () {
+    if (!identity || identity.role === "dealer") return;
+    CONSIGN_COL.get().then(function (snap) {
+      var map = {};
+      snap.forEach(function (doc) {
+        var d = doc.data();
+        // 只收錄真的有內容的：至少一個月份、且該月份有型號
+        var hasContent = d.months && d.months.length > 0 && d.months.some(function (m) {
+          return m.items && m.items.length > 0;
+        });
+        if (hasContent) {
+          map[doc.id] = { name: d.name || "", consignCode: d.consignCode || "", updatedAt: d.updatedAt || "" };
+        }
+      });
+      setExisting(map);
+    }).catch(function () { setExisting({}); });
+  }, [identity]);
+
+  if (!identity) {
+    return h(DealerLogin, { onLogin: function (id) { setIdentity(id); }, title: "📦 寄倉表查詢登入" });
+  }
+  var logout = function () { setIdentity(null); setSelected(null); setEditMode(false); };
+
+  // 經銷商：直接看自己的寄倉表
+  if (identity.role === "dealer") {
+    return h("div", null,
+      h("div", { style: { background: "#fff", borderRadius: 12, padding: "12px 16px", marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" } },
+        h("div", null,
+          h("div", { style: { fontSize: 11, color: "#888" } }, "寄倉表"),
+          h("div", { style: { fontSize: 14, fontWeight: 700, color: "#1A237E" } }, identity.label)
+        ),
+        h("button", { onClick: logout, style: { padding: "6px 14px", borderRadius: 8, border: "1.5px solid #E0E0E0", background: "#fff", color: "#C62828", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit" } }, "登出")
+      ),
+      h(ConsignmentView, { code: identity.code })
+    );
+  }
+
+  // 區域主管/總部：選經銷商看
+  var visibleDealers = DEALER_LIST.filter(function (d) {
+    if (identity.role === "hq") return true;
+    if (identity.role === "area") return d.area === identity.code;
+    return false;
+  });
+
+  if (selected) {
+    return h("div", null,
+      h("button", { onClick: function () { setSelected(null); setEditMode(false); }, style: { marginBottom: 12, padding: "8px 14px", borderRadius: 8, border: "1.5px solid #E0E0E0", background: "#fff", color: "#1A237E", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" } }, "← 返回列表"),
+      h("div", { style: { background: "#fff", borderRadius: 12, padding: "14px 16px", marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" } },
+        h("div", { style: { fontSize: 15, fontWeight: 800, color: "#1A237E" } }, selected.code + " " + selected.name + " 寄倉表"),
+        h("button", {
+          onClick: function () { setEditMode(!editMode); },
+          style: { padding: "6px 14px", borderRadius: 8, border: "none", background: editMode ? "#C62828" : "#1A237E", color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }
+        }, editMode ? "完成編輯" : "✏️ 編輯")
+      ),
+      editMode
+        ? h(ConsignmentEditor, { code: selected.code, dealerName: selected.name })
+        : h(ConsignmentView, { code: selected.code })
+    );
+  }
+
+  // 已建立寄倉、且在此身分可見範圍內的經銷商
+  var existingDealers = [];
+  if (existing) {
+    DEALER_LIST.forEach(function (d) {
+      var inScope = identity.role === "hq" || (identity.role === "area" && d.area === identity.code);
+      if (inScope && existing[d.code]) {
+        existingDealers.push(d);
+      }
+    });
+  }
+
+  // 搜尋符合的經銷商（用來新建）
+  var sq = searchInput.trim().toLowerCase();
+  var searchMatches = sq ? visibleDealers.filter(function (d) {
+    return d.code.toLowerCase().indexOf(sq) !== -1 || (d.name && d.name.toLowerCase().indexOf(sq) !== -1);
+  }).slice(0, 8) : [];
+
+  return h("div", null,
+    h("div", { style: { background: "#fff", borderRadius: 12, padding: "12px 16px", marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" } },
+      h("div", null,
+        h("div", { style: { fontSize: 11, color: "#888" } }, "寄倉表 · " + (identity.role === "hq" ? "總管理" : "區域主管")),
+        h("div", { style: { fontSize: 14, fontWeight: 700, color: "#1A237E" } }, identity.label)
+      ),
+      h("button", { onClick: logout, style: { padding: "6px 14px", borderRadius: 8, border: "1.5px solid #E0E0E0", background: "#fff", color: "#C62828", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit" } }, "登出")
+    ),
+
+    // 搜尋建立區
+    h("div", { style: { background: "#fff", borderRadius: 12, padding: "14px 16px", marginBottom: 12, boxShadow: "0 1px 4px rgba(0,0,0,0.06)" } },
+      h("div", { style: { fontSize: 13, fontWeight: 700, color: "#1A237E", marginBottom: 8 } }, "🔍 搜尋經銷商建立寄倉表"),
+      h("input", {
+        value: searchInput, onChange: function (e) { setSearchInput(e.target.value); },
+        placeholder: "輸入經銷商代號或店名…",
+        style: { width: "100%", boxSizing: "border-box", padding: "11px 12px", borderRadius: 10, border: "1.5px solid #E0E0E0", fontSize: 14, outline: "none", fontFamily: "inherit" }
+      }),
+      searchMatches.length > 0 ? h("div", { style: { border: "1px solid #E0E0E0", borderRadius: 8, marginTop: 8, overflow: "hidden" } },
+        searchMatches.map(function (d) {
+          var has = existing && existing[d.code];
+          return h("div", { key: d.code, onClick: function () { setSelected(d); setEditMode(true); },
+            style: { padding: "10px 12px", borderBottom: "1px solid #F0F0F0", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13 } },
+            h("span", { style: { fontWeight: 600 } }, d.code + " " + d.name),
+            h("span", { style: { fontSize: 11, color: has ? "#2E7D32" : "#3949AB" } }, has ? "已建立·編輯" : "＋ 建立")
+          );
+        })
+      ) : null
+    ),
+
+    // 已建立列表
+    h("div", { style: { fontSize: 13, fontWeight: 700, color: "#666", padding: "4px 4px 8px" } }, "已建立寄倉表（" + existingDealers.length + " 家）"),
+    existing === null
+      ? h("div", { style: { textAlign: "center", padding: "20px", color: "#AAA", fontSize: 13 } }, "載入中…")
+      : existingDealers.length === 0
+        ? h("div", { style: { textAlign: "center", padding: "30px 20px", background: "#fff", borderRadius: 12, color: "#AAA", fontSize: 13 } }, "尚無已建立的寄倉表，請用上方搜尋建立")
+        : h("div", { style: { borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" } },
+            existingDealers.map(function (d) {
+              var info = existing[d.code];
+              return h("div", { key: d.code, onClick: function () { setSelected(d); setEditMode(false); },
+                style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "11px 14px", background: "#fff", borderBottom: "1px solid #F0F0F0", cursor: "pointer" } },
+                h("div", { style: { minWidth: 0, flex: 1 } },
+                  h("div", { style: { fontSize: 13, fontWeight: 600, color: "#1A1A2E" } },
+                    d.code + " " + d.name + (info.consignCode ? "（" + info.consignCode + "）" : "")),
+                  h("div", { style: { fontSize: 11, color: "#888", marginTop: 1 } }, info.updatedAt || "")
+                ),
+                h("span", { style: { fontSize: 16, color: "#CCC", marginLeft: 8 } }, "›")
+              );
+            })
+          )
+  );
+}
+
+
+
+// ============ LINE 群組白名單管理 ============
+var GROUP_WHITELIST_COL = db.collection("allowedGroups");
+
+function GroupWhitelistManager() {
+  var listState = useState(null);
+  var list = listState[0], setList = listState[1];
+  var nameState = useState("");
+  var name = nameState[0], setName = nameState[1];
+  var idState = useState("");
+  var gid = idState[0], setGid = idState[1];
+  var msgState = useState("");
+  var msg = msgState[0], setMsg = msgState[1];
+  var busyState = useState(false);
+  var busy = busyState[0], setBusy = busyState[1];
+
+  function load() {
+    GROUP_WHITELIST_COL.get().then(function (snap) {
+      var arr = [];
+      snap.forEach(function (doc) { arr.push(Object.assign({ id: doc.id }, doc.data())); });
+      arr.sort(function (a, b) { return (a.name || "").localeCompare(b.name || ""); });
+      setList(arr);
+    }).catch(function () { setList([]); });
+  }
+
+  useEffect(function () { load(); }, []);
+
+  function addGroup() {
+    var idClean = gid.trim();
+    var nameClean = name.trim();
+    if (!idClean || !nameClean) { setMsg("請輸入群組名稱和群組 ID"); return; }
+    setBusy(true); setMsg("");
+    var now = new Date().toLocaleString("zh-TW", { hour12: false });
+    GROUP_WHITELIST_COL.doc(idClean).set({ name: nameClean, groupId: idClean, addedAt: now }).then(function () {
+      setBusy(false);
+      setMsg("✅ 已新增「" + nameClean + "」");
+      setName(""); setGid("");
+      load();
+    }).catch(function () { setBusy(false); setMsg("❌ 新增失敗，請確認 Firestore 規則已加 allowedGroups"); });
+  }
+
+  function removeGroup(id) {
+    if (!confirm("確定移除這個群組嗎？移除後該群組的機器人查詢功能會停用，機器人也會在下次被拉進該群組時自動退出。")) return;
+    GROUP_WHITELIST_COL.doc(id).delete().then(function () { load(); });
+  }
+
+  return h("div", { style: { background: "#fff", borderRadius: 14, padding: 20, boxShadow: "0 1px 6px rgba(0,0,0,0.07)" } },
+    h("div", { style: { fontWeight: 800, fontSize: 16, color: "#1A237E", marginBottom: 4 } }, "🔐 LINE 群組白名單"),
+    h("div", { style: { fontSize: 12, color: "#888", marginBottom: 14, lineHeight: 1.6 } },
+      "只有加入白名單的群組，裡面的人才能使用機器人查詢庫存/功能。要取得群組 ID：先把機器人拉進該群組，在群組裡打「groupid」，機器人會回傳該群組的 ID，複製貼到下方。非白名單群組會被機器人自動退出。"
+    ),
+    h("input", {
+      value: name, onChange: function (e) { setName(e.target.value); },
+      placeholder: "群組名稱（例如：南屯經銷商群）",
+      style: { width: "100%", boxSizing: "border-box", padding: "10px 12px", marginBottom: 10, borderRadius: 8, border: "1.5px solid #E0E0E0", fontSize: 14, outline: "none", fontFamily: "inherit" }
+    }),
+    h("input", {
+      value: gid, onChange: function (e) { setGid(e.target.value); },
+      placeholder: "群組 ID（在群組裡打 groupid 取得）",
+      style: { width: "100%", boxSizing: "border-box", padding: "10px 12px", marginBottom: 10, borderRadius: 8, border: "1.5px solid #E0E0E0", fontSize: 14, outline: "none", fontFamily: "inherit" }
+    }),
+    h("button", {
+      onClick: addGroup, disabled: busy,
+      style: { width: "100%", padding: "12px", borderRadius: 10, border: "none", background: "#1A237E", color: "#fff", fontWeight: 700, fontSize: 14, cursor: busy ? "not-allowed" : "pointer", fontFamily: "inherit" }
+    }, busy ? "新增中…" : "＋ 新增到白名單"),
+    msg ? h("div", { style: { marginTop: 10, fontSize: 12, color: msg.indexOf("✅") === 0 ? "#2E7D32" : "#C62828" } }, msg) : null,
+    h("div", { style: { marginTop: 16 } },
+      list === null
+        ? h("div", { style: { textAlign: "center", color: "#AAA", fontSize: 13 } }, "載入中…")
+        : list.length === 0
+          ? h("div", { style: { textAlign: "center", color: "#AAA", fontSize: 13, padding: "10px 0" } }, "目前沒有白名單群組")
+          : list.map(function (g) {
+              return h("div", { key: g.id, style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", background: "#F8F9FF", borderRadius: 8, marginBottom: 8 } },
+                h("div", null,
+                  h("div", { style: { fontSize: 13, fontWeight: 700, color: "#1A237E" } }, g.name),
+                  h("div", { style: { fontSize: 11, color: "#888", marginTop: 2, wordBreak: "break-all" } }, g.groupId)
+                ),
+                h("button", {
+                  onClick: function () { removeGroup(g.id); },
+                  style: { fontSize: 11, color: "#C62828", border: "1px solid #FFCDD2", background: "#fff", borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontFamily: "inherit", flexShrink: 0, marginLeft: 8 }
+                }, "移除")
+              );
+            })
+    )
+  );
+}
+
+function InventoryApp() {
+  var dataState = useState([]);
+  var data = dataState[0], setData = dataState[1];
+
+  var lastUpdatedState = useState(null);
+  var lastUpdated = lastUpdatedState[0], setLastUpdated = lastUpdatedState[1];
+
+  var loadingState = useState(true);
+  var loading = loadingState[0], setLoading = loadingState[1];
+
+  var searchState = useState("");
+  var search = searchState[0], setSearch = searchState[1];
+
+  var categoryFilterState = useState("全部");
+  var categoryFilter = categoryFilterState[0], setCategoryFilter = categoryFilterState[1];
+
+  var tabState = useState("管理");
+  var tab = tabState[0], setTab = tabState[1];
+
+  var uploadMsgState = useState("");
+  var uploadMsg = uploadMsgState[0], setUploadMsg = uploadMsgState[1];
+
+  var isUploadingState = useState(false);
+  var isUploading = isUploadingState[0], setIsUploading = isUploadingState[1];
+
+  var userState = useState(null);
+  var currentUser = userState[0], setCurrentUser = userState[1];
+
+  var authLoadingState = useState(true);
+  var authLoading = authLoadingState[0], setAuthLoading = authLoadingState[1];
+
+  var fileRef = useRef();
+
+  useEffect(function () {
+    var unsubscribeAuth = auth.onAuthStateChanged(function (user) {
+      setCurrentUser(user || null);
+      setAuthLoading(false);
+    });
+    return function () { unsubscribeAuth(); };
+  }, []);
+
+  function handleLogout() {
+    auth.signOut();
+    setTab("管理");
+  }
+
+  useEffect(function () {
+    var unsubscribe = DOC_REF.onSnapshot(
+      function (doc) {
+        if (doc.exists) {
+          var payload = doc.data();
+          setData(payload.items || []);
+          setLastUpdated(payload.updatedAt || null);
+        } else {
+          setData([]);
+        }
+        setLoading(false);
+      },
+      function (err) {
+        console.error("讀取失敗", err);
+        setLoading(false);
+      }
+    );
+    return function () { unsubscribe(); };
+  }, []);
+
+  var categories = ["全部"].concat(CATEGORY_LIST);
+
+  // 將搜尋字串展開成多個比對關鍵字。
+  // 支援 "AU/AM-HF28D" 這種語法 -> ["au-hf28d", "am-hf28d"]
+  function expandSearchTerms(raw) {
+    var q = raw.trim().toLowerCase();
+    if (!q) return [];
+    var slashIdx = q.indexOf("/");
+    if (slashIdx === -1) return [q];
+
+    // 嘗試找出 "/" 之後、下一個"-"之前的共同後段
+    // 例如 "au/am-hf28d" -> prefixes: ["au","am"], suffix: "hf28d"
+    var afterSlash = q.slice(slashIdx + 1);
+    var dashIdx = afterSlash.indexOf("-");
+    if (dashIdx === -1) {
+      // 沒有共同後段，單純把每個用 / 分隔的詞都當作關鍵字
+      return q.split("/").map(function (s) { return s.trim(); }).filter(Boolean);
+    }
+    var firstPrefix = q.slice(0, slashIdx);
+    var secondPrefix = afterSlash.slice(0, dashIdx);
+    var suffix = afterSlash.slice(dashIdx); // 包含開頭的 "-"
+    return [firstPrefix + suffix, secondPrefix + suffix];
+  }
+
+  var filtered = useMemo(function () {
+    var terms = expandSearchTerms(search);
+    return data.filter(function (item) {
+      var modelLower = item.model.toLowerCase();
+      var matchSearch = terms.length === 0 || terms.some(function (t) { return modelLower.indexOf(t) !== -1; });
+      var matchCat = categoryFilter === "全部" || item.category === categoryFilter;
+      return matchSearch && matchCat;
+    });
+  }, [data, search, categoryFilter]);
+
+  var alertItems = data.filter(function (i) { return i.stock < i.threshold; });
+
+  var stats = {
+    total: data.length,
+    lowStock: data.filter(function (i) { return i.stock > 0 && i.stock < i.threshold; }).length,
+    outOfStock: data.filter(function (i) { return i.stock === 0; }).length,
+    totalUnits: data.reduce(function (a, b) { return a + b.stock; }, 0)
   };
 
-  return (
-    <div>
-      <div className="card">
-        <h2>總覽</h2>
-        <p className="muted" style={{marginTop:-4}}>
-          共 {latestByKey.length} 筆最新查價紀錄，其中 <b style={{color:"var(--bad)"}}>{mismatchCount}</b> 筆與官方刊登價不符
-        </p>
-        <div className="row">
-          <button className={filter==="all"?"btn-primary btn-sm":"btn-ghost btn-sm"} onClick={()=>setFilter("all")}>全部</button>
-          <button className={filter==="mismatch"?"btn-primary btn-sm":"btn-ghost btn-sm"} onClick={()=>setFilter("mismatch")}>僅顯示不符</button>
-          <button className={filter==="ok"?"btn-primary btn-sm":"btn-ghost btn-sm"} onClick={()=>setFilter("ok")}>僅顯示一致</button>
-        </div>
-        <div style={{marginTop:10}}>
-          <button className="btn-export" onClick={exportExcel} disabled={latestByKey.length===0}>📥 下載 Excel 差異報告</button>
-        </div>
-      </div>
+  function handleFileUpload(e) {
+    var file = e.target.files[0];
+    if (!file) return;
+    setIsUploading(true);
+    setUploadMsg("");
 
-      <div className="card">
-        {loading ? <div className="empty">載入中...</div> :
-         filtered.length===0 ? <div className="empty">尚無資料</div> :
-        <table>
-          <thead><tr><th>經銷商</th><th>機型</th><th>官方價</th><th>查到價</th><th>差異</th></tr></thead>
-          <tbody>
-            {filtered.map(c=>(
-              <tr key={c.id}>
-                <td>{c.dealerName}</td>
-                <td>{c.model}</td>
-                <td>{fmtMoney(c.officialPrice)}</td>
-                <td>{fmtMoney(c.observedPrice)}</td>
-                <td>
-                  {c.diff===null ? <span className="pill pill-muted">未知</span> :
-                   c.diff===0 ? <span className="pill pill-ok">一致</span> :
-                   c.diff<0 ? <span className="pill pill-bad">低賣 {fmtMoney(Math.abs(c.diff))}</span> :
-                   <span className="pill pill-warn">高於 {fmtMoney(c.diff)}</span>}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>}
-      </div>
-    </div>
+    var reader = new FileReader();
+    reader.onload = function (evt) {
+      try {
+        var wb = XLSX.read(evt.target.result, { type: "binary" });
+        var sheetName = wb.SheetNames.indexOf("庫存原始檔") !== -1 ? "庫存原始檔" : wb.SheetNames[0];
+        var ws = wb.Sheets[sheetName];
+        var rows = XLSX.utils.sheet_to_json(ws, { defval: "" });
+
+        if (!rows.length) {
+          setUploadMsg("❌ 檔案沒有資料，請確認格式是否正確");
+          setIsUploading(false);
+          return;
+        }
+
+        var matched = {};
+        for (var i = 0; i < rows.length; i++) {
+          var row = rows[i];
+          var loc = String(row["儲存地點"] != null ? row["儲存地點"] : "").trim();
+          if (loc !== TARGET_LOCATION) continue;
+
+          var model = String(row["物料"] != null ? row["物料"] : "").trim();
+          if (!model) continue;
+
+          var category = getCategory(model);
+          if (!category) continue;
+
+          var qty = Number(row["未限制"] != null ? row["未限制"] : 0) || 0;
+
+          if (!matched[model]) {
+            matched[model] = { model: model, category: category, baseStock: 0, adjustment: 0, stock: 0, threshold: DEFAULT_THRESHOLD[category] || 5 };
+          }
+          matched[model].baseStock += qty;
+          matched[model].stock += qty;
+        }
+
+        // 補上完整型號清單（DEALER_PRODUCTS）中本次 SAP 沒出現的型號，庫存設為 0
+        // 每次上傳都重新套用整份清單：本次 SAP 沒有的型號一律視為 0（不覆蓋本次 SAP 有的資料）
+        var allKnownModels = [];
+        Object.keys(DEALER_PRODUCTS).forEach(function (cat) {
+          DEALER_PRODUCTS[cat].forEach(function (m) {
+            if (allKnownModels.indexOf(m) === -1) allKnownModels.push(m);
+          });
+        });
+        allKnownModels.forEach(function (m) {
+          if (matched[m]) return; // 本次 SAP 已有資料，不覆蓋
+          var cat = getCategory(m);
+          if (!cat) return; // 無法自動歸類的型號（例如乾衣機、AU/AM 合併寫法）跳過，不補
+          matched[m] = { model: m, category: cat, baseStock: 0, adjustment: 0, stock: 0, threshold: DEFAULT_THRESHOLD[cat] || 5 };
+        });
+
+        var items = Object.keys(matched).map(function (k) { return matched[k]; });
+        items.sort(function (a, b) {
+          if (a.category === b.category) return a.model.localeCompare(b.model);
+          return a.category.localeCompare(b.category);
+        });
+
+        if (!items.length) {
+          setUploadMsg("❌ 在儲位 " + TARGET_LOCATION + " 中找不到符合分類的型號，請確認檔案內容");
+          setIsUploading(false);
+          return;
+        }
+
+        var now = new Date().toLocaleString("zh-TW", { hour12: false });
+
+        DOC_REF.set({ items: items, updatedAt: now }).then(function () {
+          setUploadMsg("✅ 成功更新 " + items.length + " 項產品（儲位 " + TARGET_LOCATION + "），經銷商重新整理頁面即可看到");
+          setIsUploading(false);
+        }).catch(function (err) {
+          console.error(err);
+          setUploadMsg("❌ 上傳到雲端失敗，請確認網路連線或 Firebase 設定");
+          setIsUploading(false);
+        });
+      } catch (err) {
+        console.error(err);
+        setUploadMsg("❌ 解析失敗，請確認上傳的是正確的 SAP 庫存表");
+        setIsUploading(false);
+      }
+    };
+    reader.readAsBinaryString(file);
+    e.target.value = "";
+  }
+
+  function handleAdjust(model, delta, mode) {
+    return DOC_REF.get().then(function (doc) {
+      var payload = doc.exists ? doc.data() : { items: [] };
+      var items = payload.items || [];
+      var found = null;
+      for (var i = 0; i < items.length; i++) {
+        if (items[i].model === model) { found = items[i]; break; }
+      }
+      if (!found) {
+        throw new Error("找不到型號");
+      }
+      // 相容舊資料：若沒有 baseStock，視 stock 為原始庫存
+      if (found.baseStock === undefined) {
+        found.baseStock = found.stock || 0;
+        found.adjustment = 0;
+      }
+      if (mode === "set") {
+        found.adjustment = delta;
+      } else {
+        found.adjustment = (found.adjustment || 0) + delta;
+      }
+      found.stock = found.baseStock + found.adjustment;
+      if (found.stock < 0) found.stock = 0;
+
+      var now = new Date().toLocaleString("zh-TW", { hour12: false });
+      return DOC_REF.set({ items: items, updatedAt: now }).then(function () {
+        return found.stock;
+      });
+    });
+  }
+
+  // ── Header ──
+  var header = h("div", {
+    style: {
+      background: "linear-gradient(135deg, #1A237E 0%, #283593 60%, #3949AB 100%)",
+      padding: "20px 20px 0", position: "sticky", top: 0, zIndex: 100,
+      boxShadow: "0 2px 12px rgba(26,35,126,0.25)"
+    }
+  },
+    h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start" } },
+      h("div", null,
+        h("div", { style: { color: "rgba(255,255,255,0.6)", fontSize: 11, letterSpacing: 2, textTransform: "uppercase" } }, "庫存查詢系統"),
+        h("div", { style: { color: "#fff", fontSize: 20, fontWeight: 800, marginTop: 2 } }, "聲寶家電庫存查詢")
+      ),
+      h("div", { style: { display: "flex", alignItems: "center", gap: 10 } },
+        lastUpdated ? h("div", { style: { textAlign: "right" } },
+          h("div", { style: { color: "rgba(255,255,255,0.5)", fontSize: 10 } }, "上次更新"),
+          h("div", { style: { color: "rgba(255,255,255,0.85)", fontSize: 11, marginTop: 1 } }, lastUpdated)
+        ) : null,
+        h("button", {
+          onClick: function () { window.location.reload(); },
+          title: "重新整理",
+          style: {
+            width: 34, height: 34, borderRadius: "50%", border: "1px solid rgba(255,255,255,0.3)",
+            background: "rgba(255,255,255,0.12)", color: "#fff", fontSize: 16,
+            cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+            flexShrink: 0
+          }
+        }, "↻")
+      )
+    ),
+    h("div", { style: { display: "flex", gap: 4, marginTop: 16 } },
+      [{ key: "管理", label: "管理" }].map(function (t) {
+        return h("button", {
+          key: t.key,
+          onClick: function () { setTab(t.key); },
+          style: {
+            padding: "8px 12px", borderRadius: "8px 8px 0 0", border: "none", cursor: "pointer",
+            fontWeight: 700, fontSize: 12,
+            background: tab === t.key ? "#F2F4F8" : "transparent",
+            color: tab === t.key ? "#1A237E" : "rgba(255,255,255,0.7)",
+            transition: "all 0.2s"
+          }
+        }, t.label);
+      })
+    )
+  );
+
+  // ── 查詢分頁內容 ──
+  var queryContent = null;
+  if (tab === "查詢") {
+    if (data.length === 0) {
+      queryContent = h("div", { style: { textAlign: "center", padding: "50px 20px", background: "#fff", borderRadius: 14, color: "#AAAAAA" } },
+        h("div", { style: { fontSize: 36 } }, "📭"),
+        h("div", { style: { marginTop: 10, fontSize: 14, fontWeight: 600, color: "#777" } }, "尚無庫存資料"),
+        h("div", { style: { marginTop: 4, fontSize: 12 } }, "請至「管理」分頁上傳 SAP 庫存表")
+      );
+    } else {
+
+      var groups = {};
+      filtered.forEach(function (item) {
+        if (!groups[item.category]) groups[item.category] = [];
+        groups[item.category].push(item);
+      });
+
+      var groupBlocks = filtered.length === 0
+        ? h("div", { style: { textAlign: "center", padding: "40px 20px", background: "#fff", borderRadius: 14, color: "#AAAAAA" } },
+            h("div", { style: { fontSize: 32 } }, "📦"),
+            h("div", { style: { marginTop: 8, fontSize: 14 } }, "查無符合條件的產品")
+          )
+        : Object.keys(groups).map(function (cat) {
+            var items = groups[cat];
+            return h("div", { key: cat, style: { marginBottom: 16 } },
+              h("div", { style: { display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "#666", padding: "4px 4px 6px" } },
+                h("span", { style: { width: 8, height: 8, borderRadius: "50%", background: (CATEGORY_COLORS[cat] || {}).dot } }),
+                cat + "（" + items.length + "）"
+              ),
+              h("div", { style: { borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 6px rgba(0,0,0,0.06)" } },
+                items.map(function (item) { return h(ProductRow, { key: item.model, item: item }); })
+              )
+            );
+          });
+
+      queryContent = h(React.Fragment, null,
+        h("div", { style: { position: "relative", marginBottom: 10 } },
+          h("span", { style: { position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 16 } }, "🔍"),
+          h("input", {
+            value: search,
+            onChange: function (e) { setSearch(e.target.value); },
+            placeholder: "搜尋型號…",
+            style: {
+              width: "100%", boxSizing: "border-box", padding: "11px 12px 11px 38px",
+              borderRadius: 10, border: "1.5px solid #E0E0E0", fontSize: 14, outline: "none",
+              background: "#fff", fontFamily: "inherit"
+            }
+          })
+        ),
+        h("div", { style: { display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4, marginBottom: 10 } },
+          categories.map(function (c) {
+            return h("button", {
+              key: c,
+              onClick: function () { setCategoryFilter(c); },
+              style: {
+                padding: "5px 12px", borderRadius: 99, border: "1.5px solid",
+                whiteSpace: "nowrap", cursor: "pointer", fontSize: 12, fontWeight: 600, fontFamily: "inherit",
+                borderColor: categoryFilter === c ? "#1A237E" : "#E0E0E0",
+                background: categoryFilter === c ? "#1A237E" : "#fff",
+                color: categoryFilter === c ? "#fff" : "#666",
+                transition: "all 0.15s"
+              }
+            }, c);
+          })
+        ),
+        h("div", { style: { fontSize: 12, color: "#999", marginBottom: 10 } }, "顯示 " + filtered.length + " / " + data.length + " 項"),
+        groupBlocks
+      );
+    }
+  }
+
+  // ── 管理分頁內容 ──
+  var manageContent = null;
+  if (tab === "管理" && !currentUser) {
+    manageContent = h(LoginForm);
+  } else if (tab === "管理" && currentUser) {
+    var ruleRows = CATEGORY_LIST.map(function (cat) {
+      var c = CATEGORY_COLORS[cat];
+      var rule = null;
+      for (var i = 0; i < PREFIX_RULES.length; i++) {
+        if (PREFIX_RULES[i].category === cat) { rule = PREFIX_RULES[i]; break; }
+      }
+      var ruleText = rule
+        ? rule.prefixes.map(function (p) { return p.indexOf("-") !== -1 ? p : p + "-"; }).join(" / ") + " 開頭"
+        : "其餘不符合以上規則的型號";
+      return h("div", { key: cat, style: { display: "flex", alignItems: "center", gap: 10 } },
+        h("span", { style: { width: 10, height: 10, borderRadius: "50%", background: c.dot, flexShrink: 0 } }),
+        h("span", { style: { fontSize: 13, fontWeight: 700, color: "#333", width: 78 } }, cat),
+        h("span", { style: { fontSize: 12, color: "#888", fontFamily: "monospace" } }, ruleText)
+      );
+    });
+
+    var statBoxes = [
+      { label: "總品項數", value: stats.total },
+      { label: "總庫存台數", value: stats.totalUnits },
+      { label: "庫存不足", value: stats.lowStock },
+      { label: "完全無庫存", value: stats.outOfStock }
+    ].map(function (s) {
+      return h("div", { key: s.label, style: { background: "#F8F9FF", borderRadius: 8, padding: "10px 12px" } },
+        h("div", { style: { fontSize: 11, color: "#888" } }, s.label),
+        h("div", { style: { fontSize: 20, fontWeight: 800, color: "#1A237E", marginTop: 2 } }, s.value)
+      );
+    });
+
+    manageContent = h("div", { style: { display: "flex", flexDirection: "column", gap: 14 } },
+      h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", background: "#fff", borderRadius: 14, padding: "12px 16px", boxShadow: "0 1px 6px rgba(0,0,0,0.07)" } },
+        h("div", { style: { fontSize: 12, color: "#666" } }, "👤 已登入：" + currentUser.email),
+        h("button", {
+          onClick: handleLogout,
+          style: {
+            padding: "6px 14px", borderRadius: 8, border: "1.5px solid #E0E0E0",
+            background: "#fff", color: "#C62828", fontWeight: 700, fontSize: 12,
+            cursor: "pointer", fontFamily: "inherit"
+          }
+        }, "登出")
+      ),
+      h("div", { style: { background: "#fff", borderRadius: 14, padding: 20, boxShadow: "0 1px 6px rgba(0,0,0,0.07)" } },
+        h("div", { style: { fontWeight: 800, fontSize: 16, color: "#1A237E", marginBottom: 4 } }, "📤 上傳 SAP 庫存表"),
+        h("div", { style: { fontSize: 12, color: "#888", marginBottom: 16, lineHeight: 1.6 } },
+          "直接上傳 SAP 匯出的庫存表（.xlsx/.xlsm）。系統會自動從「庫存原始檔」工作表中，篩選儲存地點 " + TARGET_LOCATION + " 且符合五大分類的型號，更新後經銷商重新整理頁面即可看到。未出現在本次 SAP 匯出但屬於經銷商型號清單的品項，會自動補上庫存 0。"
+        ),
+        h("button", {
+          onClick: function () { if (fileRef.current) fileRef.current.click(); },
+          disabled: isUploading,
+          style: {
+            width: "100%", padding: "14px", borderRadius: 10, border: "2px dashed #3949AB",
+            background: isUploading ? "#F5F5F5" : "#EEF0FB", color: "#3949AB", fontWeight: 700, fontSize: 14,
+            cursor: isUploading ? "not-allowed" : "pointer", fontFamily: "inherit",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 8
+          }
+        }, isUploading ? "⏳ 解析並上傳中…" : "📁 每日上傳庫存表"),
+        h("input", { ref: fileRef, type: "file", accept: ".xlsx,.xls,.xlsm", onChange: handleFileUpload, style: { display: "none" } }),
+        uploadMsg ? h("div", {
+          style: {
+            marginTop: 12, padding: "10px 14px", borderRadius: 8,
+            background: uploadMsg.indexOf("✅") === 0 ? "#E8F5E9" : "#FFEBEE",
+            color: uploadMsg.indexOf("✅") === 0 ? "#2E7D32" : "#C62828",
+            fontSize: 13, fontWeight: 600, lineHeight: 1.5
+          }
+        }, uploadMsg) : null
+      ),
+      h(PriceListUpload),
+      h(ACPriceUpload),
+      h(ConsignmentUpload),
+      h(GroupWhitelistManager),
+      h(NotifySettingsManager),
+      h(AnnouncementManager),
+      h(AdjustPanel, { data: data, onApply: handleAdjust }),
+      h(AdjustedList, { data: data, onApply: handleAdjust }),
+      h("div", { style: { background: "#fff", borderRadius: 14, padding: 20, boxShadow: "0 1px 6px rgba(0,0,0,0.07)" } },
+        h("div", { style: { fontWeight: 700, fontSize: 14, color: "#333", marginBottom: 12 } }, "📋 自動分類規則"),
+        h("div", { style: { display: "flex", flexDirection: "column", gap: 8 } }, ruleRows),
+        h("div", { style: { marginTop: 14, padding: "10px 12px", background: "#F8F9FF", borderRadius: 8, fontSize: 11, color: "#666", lineHeight: 1.6 } },
+          "只顯示儲存地點為 " + TARGET_LOCATION + " 的庫存。不符合上述分類前綴的型號將不會出現在經銷商畫面。"
+        )
+      ),
+      h("div", { style: { background: "#fff", borderRadius: 14, padding: 20, boxShadow: "0 1px 6px rgba(0,0,0,0.07)" } },
+        h("div", { style: { fontWeight: 700, fontSize: 14, color: "#333", marginBottom: 12 } }, "📊 目前資料狀態"),
+        h("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 } }, statBoxes),
+        lastUpdated ? h("div", { style: { marginTop: 10, fontSize: 11, color: "#AAAAAA" } }, "最後更新時間：" + lastUpdated) : null
+      )
+    );
+  }
+
+  // ── 經銷商分頁內容 ──
+  var dealerContent = null;
+  if (tab === "經銷商") {
+    dealerContent = h(DealerSystem);
+  }
+
+  // ── 寄倉表分頁內容 ──
+  var consignContent = null;
+  if (tab === "寄倉") {
+    consignContent = h(ConsignmentSystem);
+  }
+
+  // ── 價格表分頁內容 ──
+  var priceContent = null;
+  if (tab === "價格") {
+    priceContent = h(PriceListSystem);
+  }
+
+  var bodyContent;
+  if (tab === "價格") bodyContent = priceContent;
+  else if (tab === "寄倉") bodyContent = consignContent;
+  else if (tab === "經銷商") bodyContent = dealerContent;
+  else if (tab === "管理") bodyContent = manageContent;
+  else bodyContent = queryContent;
+
+  var needLoading = (tab === "管理") && loading;
+
+  return h("div", { className: "app-container", style: { minHeight: "100vh", background: "#F2F4F8" } },
+    header,
+    h("div", { style: { padding: "16px 16px 40px" } },
+      needLoading ? h("div", { style: { textAlign: "center", padding: "60px 20px", color: "#AAAAAA" } }, "載入中…") : bodyContent
+    )
   );
 }
 
-// ---------- App ----------
-function App(){
-  const [authed, setAuthed] = useState(sessionStorage.getItem("pcs_authed")==="1");
-  const [tab, setTab] = useState("dashboard");
-
-  const login = () => { sessionStorage.setItem("pcs_authed","1"); setAuthed(true); };
-
-  if(!authed) return <Login onSuccess={login} />;
-
-  return (
-    <div className="app-container">
-      <div className="topbar">
-        <h1>網路查價系統</h1>
-        <div className="sub">經銷商刊登價稽核</div>
-      </div>
-      <div className="tabs">
-        <div className={"tab"+(tab==="dashboard"?" active":"")} onClick={()=>setTab("dashboard")}>總覽</div>
-        <div className={"tab"+(tab==="check"?" active":"")} onClick={()=>setTab("check")}>查價比對</div>
-        <div className={"tab"+(tab==="dealers"?" active":"")} onClick={()=>setTab("dealers")}>經銷商</div>
-        <div className={"tab"+(tab==="official"?" active":"")} onClick={()=>setTab("official")}>官方刊登價</div>
-      </div>
-      <div className="content">
-        {tab==="dashboard" && <DashboardTab/>}
-        {tab==="check" && <CheckTab/>}
-        {tab==="dealers" && <DealersTab/>}
-        {tab==="official" && <OfficialPricesTab/>}
-      </div>
-    </div>
-  );
+try {
+  var root = ReactDOM.createRoot(document.getElementById("root"));
+  root.render(h(InventoryApp));
+} catch (e) {
+  var box = document.getElementById("error-box");
+  box.style.display = "block";
+  box.textContent = "渲染時發生錯誤：\n" + e.message + "\n" + (e.stack || "");
 }
-
-ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
 </script>
 </body>
 </html>
