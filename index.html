@@ -865,6 +865,7 @@ function parsePriceWorkbook(wb) {
     var cBase = findCol(["批價"]);
     var cPromo = findCol(["本月特促", "特促"]);
     var cSuggest = findCol(["建議售價", "建議"]);
+    var cWebCheck = findCol(["網路查價"]);
     var cPrice = -1;
     for (var ip = 0; ip < header.length; ip++) { if (header[ip] === "售價") { cPrice = ip; break; } }
 
@@ -874,7 +875,7 @@ function parsePriceWorkbook(wb) {
     if (wanted) {
       wanted.forEach(function (key) {
         for (var ci = 0; ci < header.length; ci++) {
-          if (ci === cModel || ci === cCat || ci === cBase || ci === cPromo || ci === cSuggest || ci === cPrice) continue;
+          if (ci === cModel || ci === cCat || ci === cBase || ci === cPromo || ci === cSuggest || ci === cPrice || ci === cWebCheck) continue;
           if (header[ci].indexOf(key) !== -1) {
             var dup = specDefs.some(function (s) { return s.col === ci; });
             if (!dup) specDefs.push({ col: ci, label: headerRaw[ci] || key });
@@ -887,7 +888,7 @@ function parsePriceWorkbook(wb) {
       // 把除了機型/產品別/批價/特促/建議售價/售價 以外、且有標題文字的欄位都自動當作規格
       // 標題含「價」字的欄位（例如同行價、市價）不顯示在功能規格裡
       for (var ciAuto = 0; ciAuto < header.length; ciAuto++) {
-        if (ciAuto === cModel || ciAuto === cCat || ciAuto === cBase || ciAuto === cPromo || ciAuto === cSuggest || ciAuto === cPrice) continue;
+        if (ciAuto === cModel || ciAuto === cCat || ciAuto === cBase || ciAuto === cPromo || ciAuto === cSuggest || ciAuto === cPrice || ciAuto === cWebCheck) continue;
         if (!headerRaw[ciAuto]) continue;
         if (headerRaw[ciAuto].indexOf("價") !== -1) continue;
         specDefs.push({ col: ciAuto, label: headerRaw[ciAuto] });
@@ -915,6 +916,7 @@ function parsePriceWorkbook(wb) {
         promo: val(cPromo),
         suggest: val(cSuggest),
         price: val(cPrice),
+        webCheck: val(cWebCheck),
         specs: specs
       });
     }
@@ -1003,7 +1005,8 @@ function PriceListView() {
                 it.base ? h("span", null, h("span", { style: { color: "#888" } }, "批價 "), h("span", { style: { fontWeight: 700, color: "#1A237E" } }, it.base)) : null,
                 it.promo ? h("span", null, h("span", { style: { color: "#888" } }, "特促 "), h("span", { style: { fontWeight: 700, color: "#C62828" } }, it.promo)) : null,
                 it.suggest ? h("span", null, h("span", { style: { color: "#888" } }, "建議 "), h("span", { style: { color: "#666" } }, it.suggest)) : null,
-                it.price ? h("span", null, h("span", { style: { color: "#888" } }, "售價 "), h("span", { style: { fontWeight: 700, color: "#2E7D32" } }, it.price)) : null
+                it.price ? h("span", null, h("span", { style: { color: "#888" } }, "售價 "), h("span", { style: { fontWeight: 700, color: "#2E7D32" } }, it.price)) : null,
+                it.webCheck ? h("span", null, h("span", { style: { color: "#888" } }, "網路查價 "), h("span", { style: { fontWeight: 700, color: "#6A1B9A" } }, it.webCheck)) : null
               ),
               (it.specs && it.specs.length) ? h("div", { style: { marginTop: 6, paddingTop: 6, borderTop: "1px dashed #EEE" } },
                 h("div", {
