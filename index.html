@@ -347,6 +347,25 @@ function CheckTab(){
   const dealer = dealers.find(d=>d.id===selectedDealer);
   const official = officials.find(o=>o.model===selectedModel);
 
+  const exportDealerReport = async () => {
+    if(!selectedDealer || !dealer) return;
+    const snap = await db.collection("priceChecks").where("dealerId","==",selectedDealer).orderBy("checkedAt","desc").get();
+    const latestByModel = new Map();
+    snap.docs.forEach(d=>{
+      const c = d.data();
+      if(!latestByModel.has(c.model)) latestByModel.set(c.model, c);
+    });
+    const rows = Array.from(latestByModel.values()).sort((a,b)=>(a.model||"").localeCompare(b.model||""));
+    if(rows.length===0){ alert("這個經銷商還沒有任何查價紀錄"); return; }
+    const header = ["機型", "網路查價", dealer.name + "露出價", "差異"];
+    const aoa = [header, ...rows.map(c=>[c.model, c.officialPrice, c.observedPrice, c.diff])];
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws["!cols"] = [{wch:16},{wch:12},{wch:14},{wch:10}];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "露出價差異");
+    XLSX.writeFile(wb, `${dealer.name}露出價差異.xlsx`);
+  };
+
   const submitCheck = async () => {
     if(!selectedDealer || !selectedModel || observedPrice==="") return;
     const officialPrice = official ? official.official : null;
@@ -400,7 +419,10 @@ function CheckTab(){
 
       {selectedDealer && (
         <div className="card">
-          <h2>{dealer ? dealer.name : ""} 最近查價紀錄</h2>
+          <div className="toolbar">
+            <h2>{dealer ? dealer.name : ""} 最近查價紀錄</h2>
+            <button className="btn-export btn-sm" onClick={exportDealerReport}>📥 下載差異報表</button>
+          </div>
           {recentChecks.length===0 ? <div className="empty">尚無紀錄</div> :
           <table>
             <thead><tr><th>機型</th><th>官方價</th><th>查到價</th><th>差異</th></tr></thead>
