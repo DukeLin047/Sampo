@@ -80,7 +80,21 @@ var DEALER_AREAS = {"A42B": {"num": "135", "sales": "陳世穎"}, "A42C": {"num"
 var DEALER_STOCK_COL = db.collection("dealerStock");
 
 // ── 設定 ──────────────────────────────────────────────────────
-var TARGET_LOCATION = "4326";
+// 要寫入資料庫的儲位（台中相關）；DEFAULT_LOCATION 是群組未指定時的預設
+var TARGET_LOCATIONS = [
+  { code: "4120", label: "台中已稅倉" },
+  { code: "4323", label: "台中_台中共用貨源" },
+  { code: "4324", label: "台中_台中PM備用貨源" },
+  { code: "4325", label: "台中_現銷中部一課" },
+  { code: "4326", label: "台中_現銷中部二課" },
+  { code: "4327", label: "台中_中部特銷" },
+  { code: "4328", label: "台中_台中量販" },
+  { code: "4329", label: "台中_小電_中區量倉" },
+  { code: "4348", label: "台中_現銷桃竹苗三課" },
+  { code: "4354", label: "台中_台中倉儲" },
+  { code: "4355", label: "台中_小電_中區倉儲" }
+];
+var DEFAULT_LOCATION = "4326";
 
 var PREFIX_RULES = [
   { prefixes: ["EM", "QM"], category: "電視" },
@@ -1814,6 +1828,7 @@ function GroupWhitelistManager() {
     var now = new Date().toLocaleString("zh-TW", { hour12: false });
     GROUP_WHITELIST_COL.doc(idClean).set({
       name: nameClean, groupId: idClean, addedAt: now,
+      location: DEFAULT_LOCATION,
       permissions: { stock: true, feature: true, price: true, list: true }
     }).then(function () {
       setBusy(false);
@@ -1839,6 +1854,14 @@ function GroupWhitelistManager() {
     });
   }
 
+  function setLocation(g, code) {
+    GROUP_WHITELIST_COL.doc(g.id).set({ location: code }, { merge: true }).then(function () {
+      load();
+    }).catch(function () {
+      setMsg("❌ 儲位更新失敗");
+    });
+  }
+
   function removeGroup(id) {
     if (!confirm("確定移除這個群組嗎？移除後該群組的機器人查詢功能會全部停用。")) return;
     GROUP_WHITELIST_COL.doc(id).delete().then(function () { load(); });
@@ -1847,7 +1870,7 @@ function GroupWhitelistManager() {
   return h("div", { style: { background: "#fff", borderRadius: 14, padding: 20, boxShadow: "0 1px 6px rgba(0,0,0,0.07)" } },
     h("div", { style: { fontWeight: 800, fontSize: 16, color: "#1A237E", marginBottom: 4 } }, "🔐 LINE 群組白名單與權限"),
     h("div", { style: { fontSize: 12, color: "#888", marginBottom: 14, lineHeight: 1.6 } },
-      "只有加入白名單的群組才能使用機器人。每個群組可以個別開關四項查詢功能，關閉的功能在該群組打指令時機器人不會回應。取得群組 ID：把機器人拉進群組後，在群組裡打「groupid」。"
+      "只有加入白名單的群組才能使用機器人。每個群組可個別指定要查詢哪一個儲位，並開關四項查詢功能。取得群組 ID：把機器人拉進群組後，在群組裡打「groupid」。"
     ),
     h("input", {
       value: name, onChange: function (e) { setName(e.target.value); },
@@ -1881,6 +1904,18 @@ function GroupWhitelistManager() {
                     onClick: function () { removeGroup(g.id); },
                     style: { fontSize: 11, color: "#C62828", border: "1px solid #FFCDD2", background: "#fff", borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontFamily: "inherit", flexShrink: 0, marginLeft: 8 }
                   }, "移除")
+                ),
+                h("div", { style: { display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" } },
+                  h("span", { style: { fontSize: 12, color: "#888", flexShrink: 0 } }, "查詢儲位"),
+                  h("select", {
+                    value: g.location || DEFAULT_LOCATION,
+                    onChange: function (e) { setLocation(g, e.target.value); },
+                    style: { flex: 1, minWidth: 180, padding: "7px 10px", borderRadius: 8, border: "1.5px solid #E0E0E0", fontSize: 13, outline: "none", fontFamily: "inherit", background: "#fff", color: "#1A237E", fontWeight: 700 }
+                  },
+                    TARGET_LOCATIONS.map(function (loc) {
+                      return h("option", { key: loc.code, value: loc.code }, loc.code + "　" + loc.label);
+                    })
+                  )
                 ),
                 h("div", { style: { display: "flex", flexWrap: "wrap", gap: 6 } },
                   FEATURES.map(function (f) {
@@ -2039,11 +2074,15 @@ function InventoryApp() {
           return;
         }
 
-        var matched = {};
+        // 依儲位分開統計
+        var locCodes = TARGET_LOCATIONS.map(function (l) { return l.code; });
+        var byLoc = {};
+        locCodes.forEach(function (c) { byLoc[c] = {}; });
+
         for (var i = 0; i < rows.length; i++) {
           var row = rows[i];
           var loc = String(row["儲存地點"] != null ? row["儲存地點"] : "").trim();
-          if (loc !== TARGET_LOCATION) continue;
+          if (locCodes.indexOf(loc) === -1) continue;
 
           var model = String(row["物料"] != null ? row["物料"] : "").trim();
           if (!model) continue;
@@ -2053,44 +2092,64 @@ function InventoryApp() {
 
           var qty = Number(row["未限制"] != null ? row["未限制"] : 0) || 0;
 
-          if (!matched[model]) {
-            matched[model] = { model: model, category: category, baseStock: 0, adjustment: 0, stock: 0, threshold: DEFAULT_THRESHOLD[category] || 5 };
+          var bucket = byLoc[loc];
+          if (!bucket[model]) {
+            bucket[model] = { model: model, category: category, baseStock: 0, adjustment: 0, stock: 0, threshold: DEFAULT_THRESHOLD[category] || 5 };
           }
-          matched[model].baseStock += qty;
-          matched[model].stock += qty;
+          bucket[model].baseStock += qty;
+          bucket[model].stock += qty;
         }
 
         // 補上完整型號清單（DEALER_PRODUCTS）中本次 SAP 沒出現的型號，庫存設為 0
-        // 每次上傳都重新套用整份清單：本次 SAP 沒有的型號一律視為 0（不覆蓋本次 SAP 有的資料）
         var allKnownModels = [];
         Object.keys(DEALER_PRODUCTS).forEach(function (cat) {
           DEALER_PRODUCTS[cat].forEach(function (m) {
             if (allKnownModels.indexOf(m) === -1) allKnownModels.push(m);
           });
         });
-        allKnownModels.forEach(function (m) {
-          if (matched[m]) return; // 本次 SAP 已有資料，不覆蓋
-          var cat = getCategory(m);
-          if (!cat) return; // 無法自動歸類的型號（例如乾衣機、AU/AM 合併寫法）跳過，不補
-          matched[m] = { model: m, category: cat, baseStock: 0, adjustment: 0, stock: 0, threshold: DEFAULT_THRESHOLD[cat] || 5 };
+
+        var locations = {};
+        var summaryParts = [];
+        locCodes.forEach(function (code) {
+          var bucket = byLoc[code];
+          // 只有預設儲位補齊完整型號清單（庫存 0），其餘儲位只存實際有資料的型號，
+          // 避免儲位一多就撐爆 Firestore 單文件 1MB 上限
+          if (code === DEFAULT_LOCATION) {
+            allKnownModels.forEach(function (m) {
+              if (bucket[m]) return;
+              var cat = getCategory(m);
+              if (!cat) return;
+              bucket[m] = { model: m, category: cat, baseStock: 0, adjustment: 0, stock: 0, threshold: DEFAULT_THRESHOLD[cat] || 5 };
+            });
+          }
+          var arr = Object.keys(bucket).map(function (k) { return bucket[k]; });
+          arr.sort(function (a, b) {
+            if (a.category === b.category) return a.model.localeCompare(b.model);
+            return a.category.localeCompare(b.category);
+          });
+          locations[code] = arr;
+          summaryParts.push(code + "：" + arr.length + " 項");
         });
 
-        var items = Object.keys(matched).map(function (k) { return matched[k]; });
-        items.sort(function (a, b) {
-          if (a.category === b.category) return a.model.localeCompare(b.model);
-          return a.category.localeCompare(b.category);
-        });
-
-        if (!items.length) {
-          setUploadMsg("❌ 在儲位 " + TARGET_LOCATION + " 中找不到符合分類的型號，請確認檔案內容");
+        var defaultItems = locations[DEFAULT_LOCATION] || [];
+        if (!defaultItems.length) {
+          setUploadMsg("❌ 在指定儲位中找不到符合分類的型號，請確認檔案內容");
           setIsUploading(false);
           return;
         }
 
         var now = new Date().toLocaleString("zh-TW", { hour12: false });
 
-        DOC_REF.set({ items: items, updatedAt: now }).then(function () {
-          setUploadMsg("✅ 成功更新 " + items.length + " 項產品（儲位 " + TARGET_LOCATION + "），經銷商重新整理頁面即可看到");
+        // items 保留預設儲位資料（相容既有查詢頁與手動調整功能）
+        // locations 存各儲位明細，供 LINE 機器人依群組設定取用
+        DOC_REF.set({
+          items: defaultItems,
+          locations: locations,
+          locationList: TARGET_LOCATIONS,
+          updatedAt: now
+        }).then(function () {
+          var totalItems = summaryParts.length;
+          setUploadMsg("✅ 已更新 " + TARGET_LOCATIONS.length + " 個台中儲位的庫存資料");
           setIsUploading(false);
         }).catch(function (err) {
           console.error(err);
@@ -2304,7 +2363,7 @@ function InventoryApp() {
       h("div", { style: { background: "#fff", borderRadius: 14, padding: 20, boxShadow: "0 1px 6px rgba(0,0,0,0.07)" } },
         h("div", { style: { fontWeight: 800, fontSize: 16, color: "#1A237E", marginBottom: 4 } }, "📤 上傳 SAP 庫存表"),
         h("div", { style: { fontSize: 12, color: "#888", marginBottom: 16, lineHeight: 1.6 } },
-          "直接上傳 SAP 匯出的庫存表（.xlsx/.xlsm）。系統會自動從「庫存原始檔」工作表中，篩選儲存地點 " + TARGET_LOCATION + " 且符合五大分類的型號，更新後經銷商重新整理頁面即可看到。未出現在本次 SAP 匯出但屬於經銷商型號清單的品項，會自動補上庫存 0。"
+          "直接上傳 SAP 匯出的庫存表（.xlsx/.xlsm）。系統會從「庫存原始檔」工作表中，同時抓取 " + TARGET_LOCATIONS.map(function (l) { return l.code; }).join("、") + " 三個儲位的資料分開存放，各群組可在下方白名單設定要查詢哪一個儲位。未出現在本次 SAP 匯出但屬於經銷商型號清單的品項，會自動補上庫存 0。"
         ),
         h("button", {
           onClick: function () { if (fileRef.current) fileRef.current.click(); },
@@ -2338,7 +2397,7 @@ function InventoryApp() {
         h("div", { style: { fontWeight: 700, fontSize: 14, color: "#333", marginBottom: 12 } }, "📋 自動分類規則"),
         h("div", { style: { display: "flex", flexDirection: "column", gap: 8 } }, ruleRows),
         h("div", { style: { marginTop: 14, padding: "10px 12px", background: "#F8F9FF", borderRadius: 8, fontSize: 11, color: "#666", lineHeight: 1.6 } },
-          "只顯示儲存地點為 " + TARGET_LOCATION + " 的庫存。不符合上述分類前綴的型號將不會出現在經銷商畫面。"
+          "目前抓取儲位：" + TARGET_LOCATIONS.map(function (l) { return l.code + "(" + l.label + ")"; }).join("、") + "。不符合上述分類前綴的型號將歸類為小家電。"
         )
       ),
       h("div", { style: { background: "#fff", borderRadius: 14, padding: 20, boxShadow: "0 1px 6px rgba(0,0,0,0.07)" } },
