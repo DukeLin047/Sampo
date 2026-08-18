@@ -230,8 +230,11 @@ function LoginForm() {
 
 function AdjustPanel(props) {
   var data = props.data;
+  var locations = props.locations || {};
   var onApply = props.onApply;
 
+  var locState = useState(DEFAULT_LOCATION);
+  var loc = locState[0], setLoc = locState[1];
   var searchState = useState("");
   var search = searchState[0], setSearch = searchState[1];
   var selectedState = useState(null);
@@ -243,8 +246,11 @@ function AdjustPanel(props) {
   var busyState = useState(false);
   var busy = busyState[0], setBusy = busyState[1];
 
+  // 選定儲位的資料來源；預設儲位優先用 items（含手動調整結果）
+  var sourceList = (loc === DEFAULT_LOCATION && data && data.length) ? data : (locations[loc] || []);
+
   var q = search.trim().toLowerCase();
-  var matches = q ? data.filter(function (it) { return it.model.toLowerCase().indexOf(q) !== -1; }).slice(0, 8) : [];
+  var matches = q ? sourceList.filter(function (it) { return it.model.toLowerCase().indexOf(q) !== -1; }).slice(0, 8) : [];
 
   function applyAdjust() {
     var d = Number(delta);
@@ -254,7 +260,7 @@ function AdjustPanel(props) {
     }
     setBusy(true);
     setMsg("");
-    onApply(selected.model, d).then(function (newStock) {
+    onApply(selected.model, d, undefined, loc).then(function (newStock) {
       setBusy(false);
       setMsg("✅ 已調整「" + selected.model + "」，最新庫存：" + newStock);
       setDelta("");
@@ -268,8 +274,21 @@ function AdjustPanel(props) {
 
   return h("div", { style: { background: "#fff", borderRadius: 14, padding: 20, boxShadow: "0 1px 6px rgba(0,0,0,0.07)" } },
     h("div", { style: { fontWeight: 800, fontSize: 16, color: "#1A237E", marginBottom: 4 } }, "✏️ 手動調整單一型號數量"),
-    h("div", { style: { fontSize: 12, color: "#888", marginBottom: 14, lineHeight: 1.6 } },
-      "搜尋型號後輸入調整數量（正數增加、負數減少），會直接套用到查詢頁的最終庫存。下次上傳新庫存表時，調整量會被覆蓋。"
+    h("div", { style: { fontSize: 12, color: "#888", marginBottom: 12, lineHeight: 1.6 } },
+      "先選要調整的儲位，搜尋型號後輸入調整數量（正數增加、負數減少）。調整會同步反映到該儲位的 LINE 查詢結果。下次上傳新庫存表時，調整量會被覆蓋。"
+    ),
+
+    h("div", { style: { display: "flex", alignItems: "center", gap: 8, marginBottom: 12, flexWrap: "wrap" } },
+      h("span", { style: { fontSize: 12, color: "#888", flexShrink: 0 } }, "調整儲位"),
+      h("select", {
+        value: loc,
+        onChange: function (e) { setLoc(e.target.value); setSelected(null); setSearch(""); setMsg(""); },
+        style: { flex: 1, minWidth: 180, padding: "8px 10px", borderRadius: 8, border: "1.5px solid #E0E0E0", fontSize: 13, outline: "none", fontFamily: "inherit", background: "#fff", color: "#1A237E", fontWeight: 700 }
+      },
+        TARGET_LOCATIONS.map(function (L) {
+          return h("option", { key: L.code, value: L.code }, L.code + "　" + L.label);
+        })
+      )
     ),
 
     selected
@@ -340,15 +359,38 @@ function AdjustPanel(props) {
 
 function AdjustedList(props) {
   var data = props.data;
+  var locations = props.locations || {};
   var onApply = props.onApply;
   var busyState = useState(null);
   var busy = busyState[0], setBusy = busyState[1];
 
-  var adjusted = data.filter(function (it) { return it.adjustment && it.adjustment !== 0; });
+  // 彙整所有儲位的調整紀錄；預設儲位以 items 為準（避免與 locations 重複列出）
+  var adjusted = [];
+  (data || []).forEach(function (it) {
+    if (it.adjustment && it.adjustment !== 0) {
+      adjusted.push({ loc: DEFAULT_LOCATION, item: it });
+    }
+  });
+  Object.keys(locations).forEach(function (code) {
+    if (code === DEFAULT_LOCATION) return;
+    (locations[code] || []).forEach(function (it) {
+      if (it.adjustment && it.adjustment !== 0) {
+        adjusted.push({ loc: code, item: it });
+      }
+    });
+  });
 
-  function clearAdjust(model) {
-    setBusy(model);
-    onApply(model, 0, "set").then(function () {
+  function locLabel(code) {
+    for (var i = 0; i < TARGET_LOCATIONS.length; i++) {
+      if (TARGET_LOCATIONS[i].code === code) return code + " " + TARGET_LOCATIONS[i].label;
+    }
+    return code;
+  }
+
+  function clearAdjust(model, code) {
+    var key = code + "|" + model;
+    setBusy(key);
+    onApply(model, 0, "set", code).then(function () {
       setBusy(null);
     }).catch(function () {
       setBusy(null);
@@ -357,28 +399,31 @@ function AdjustedList(props) {
 
   return h("div", { style: { background: "#fff", borderRadius: 14, padding: 20, boxShadow: "0 1px 6px rgba(0,0,0,0.07)" } },
     h("div", { style: { fontWeight: 700, fontSize: 14, color: "#333", marginBottom: 4 } }, "📝 已手動調整的型號"),
-    h("div", { style: { fontSize: 11, color: "#888", marginBottom: 14 } }, "顯示「原始庫存 + 調整量 = 最終庫存」，可隨時清除調整"),
+    h("div", { style: { fontSize: 11, color: "#888", marginBottom: 14 } }, "顯示各儲位「原始庫存 + 調整量 = 最終庫存」，可隨時清除調整"),
     adjusted.length === 0
       ? h("div", { style: { textAlign: "center", padding: "20px", color: "#AAAAAA", fontSize: 13 } }, "目前沒有任何手動調整")
       : h("div", { style: { display: "flex", flexDirection: "column", gap: 10 } },
-          adjusted.map(function (it) {
+          adjusted.map(function (rec) {
+            var it = rec.item;
             var base = it.baseStock !== undefined ? it.baseStock : it.stock;
             var adj = it.adjustment || 0;
+            var key = rec.loc + "|" + it.model;
             return h("div", {
-              key: it.model,
+              key: key,
               style: { padding: "12px 14px", background: "#F8F9FF", borderRadius: 10, border: "1px solid #E8EAF6" }
             },
-              h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 } },
+              h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 } },
                 h("span", { style: { fontSize: 13, fontWeight: 700, color: "#1A237E" } }, it.model),
                 h("button", {
-                  onClick: function () { clearAdjust(it.model); },
-                  disabled: busy === it.model,
+                  onClick: function () { clearAdjust(it.model, rec.loc); },
+                  disabled: busy === key,
                   style: {
                     fontSize: 11, color: "#C62828", border: "1px solid #FFCDD2", background: "#fff",
-                    borderRadius: 6, padding: "3px 10px", cursor: "pointer", fontFamily: "inherit"
+                    borderRadius: 6, padding: "3px 10px", cursor: "pointer", fontFamily: "inherit", flexShrink: 0, marginLeft: 8
                   }
-                }, busy === it.model ? "清除中…" : "清除調整")
+                }, busy === key ? "清除中…" : "清除調整")
               ),
+              h("div", { style: { fontSize: 11, color: "#3949AB", marginBottom: 6 } }, "儲位：" + locLabel(rec.loc)),
               h("div", { style: { fontSize: 13, color: "#555", fontFamily: "monospace" } },
                 "原始 " + base + "  " + (adj > 0 ? "+ " + adj : "- " + Math.abs(adj)) + "  =  ",
                 h("span", { style: { fontWeight: 800, color: "#2E7D32" } }, it.stock)
@@ -1949,6 +1994,9 @@ function InventoryApp() {
   var dataState = useState([]);
   var data = dataState[0], setData = dataState[1];
 
+  var locationsState = useState({});
+  var locationsData = locationsState[0], setLocationsData = locationsState[1];
+
   var lastUpdatedState = useState(null);
   var lastUpdated = lastUpdatedState[0], setLastUpdated = lastUpdatedState[1];
 
@@ -1997,6 +2045,7 @@ function InventoryApp() {
         if (doc.exists) {
           var payload = doc.data();
           setData(payload.items || []);
+          setLocationsData(payload.locations || {});
           setLastUpdated(payload.updatedAt || null);
         } else {
           setData([]);
@@ -2166,33 +2215,55 @@ function InventoryApp() {
     e.target.value = "";
   }
 
-  function handleAdjust(model, delta, mode) {
+  // 調整指定儲位的庫存。location 未指定時視為預設儲位。
+  // 預設儲位會同步更新 items 與 locations[預設儲位]，確保網頁與 LINE 查詢一致。
+  function handleAdjust(model, delta, mode, location) {
+    var targetLoc = location || DEFAULT_LOCATION;
     return DOC_REF.get().then(function (doc) {
-      var payload = doc.exists ? doc.data() : { items: [] };
+      var payload = doc.exists ? doc.data() : { items: [], locations: {} };
       var items = payload.items || [];
-      var found = null;
-      for (var i = 0; i < items.length; i++) {
-        if (items[i].model === model) { found = items[i]; break; }
+      var locations = payload.locations || {};
+
+      function applyTo(list) {
+        if (!list) return null;
+        var found = null;
+        for (var i = 0; i < list.length; i++) {
+          if (list[i].model === model) { found = list[i]; break; }
+        }
+        if (!found) return null;
+        if (found.baseStock === undefined) {
+          found.baseStock = found.stock || 0;
+          found.adjustment = 0;
+        }
+        if (mode === "set") {
+          found.adjustment = delta;
+        } else {
+          found.adjustment = (found.adjustment || 0) + delta;
+        }
+        found.stock = found.baseStock + found.adjustment;
+        if (found.stock < 0) found.stock = 0;
+        return found;
       }
-      if (!found) {
+
+      var result = applyTo(locations[targetLoc]);
+
+      // 預設儲位同步更新 items（查詢頁與相容用）
+      if (targetLoc === DEFAULT_LOCATION) {
+        var itemResult = applyTo(items);
+        if (!result) result = itemResult;
+      }
+
+      if (!result) {
         throw new Error("找不到型號");
       }
-      // 相容舊資料：若沒有 baseStock，視 stock 為原始庫存
-      if (found.baseStock === undefined) {
-        found.baseStock = found.stock || 0;
-        found.adjustment = 0;
-      }
-      if (mode === "set") {
-        found.adjustment = delta;
-      } else {
-        found.adjustment = (found.adjustment || 0) + delta;
-      }
-      found.stock = found.baseStock + found.adjustment;
-      if (found.stock < 0) found.stock = 0;
 
       var now = new Date().toLocaleString("zh-TW", { hour12: false });
-      return DOC_REF.set({ items: items, updatedAt: now }).then(function () {
-        return found.stock;
+      return DOC_REF.set({
+        items: items,
+        locations: locations,
+        updatedAt: now
+      }, { merge: true }).then(function () {
+        return result.stock;
       });
     });
   }
@@ -2391,8 +2462,8 @@ function InventoryApp() {
       h(GroupWhitelistManager),
       h(NotifySettingsManager),
       h(AnnouncementManager),
-      h(AdjustPanel, { data: data, onApply: handleAdjust }),
-      h(AdjustedList, { data: data, onApply: handleAdjust }),
+      h(AdjustPanel, { data: data, locations: locationsData, onApply: handleAdjust }),
+      h(AdjustedList, { data: data, locations: locationsData, onApply: handleAdjust }),
       h("div", { style: { background: "#fff", borderRadius: 14, padding: 20, boxShadow: "0 1px 6px rgba(0,0,0,0.07)" } },
         h("div", { style: { fontWeight: 700, fontSize: 14, color: "#333", marginBottom: 12 } }, "📋 自動分類規則"),
         h("div", { style: { display: "flex", flexDirection: "column", gap: 8 } }, ruleRows),
