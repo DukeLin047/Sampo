@@ -1835,7 +1835,7 @@ function ConsignmentSystem() {
 // ============ LINE 群組白名單管理 ============
 var GROUP_WHITELIST_COL = db.collection("allowedGroups");
 
-function GroupWhitelistManager() {
+function GroupWhitelistManager(props) {
   var listState = useState(null);
   var list = listState[0], setList = listState[1];
   var nameState = useState("");
@@ -1846,6 +1846,11 @@ function GroupWhitelistManager() {
   var msg = msgState[0], setMsg = msgState[1];
   var busyState = useState(false);
   var busy = busyState[0], setBusy = busyState[1];
+  // 每個群組「待套用」的儲位選擇（尚未按確定前不寫入資料庫）
+  var pendingLocState = useState({});
+  var pendingLoc = pendingLocState[0], setPendingLoc = pendingLocState[1];
+  var locMsgState = useState({});
+  var locMsg = locMsgState[0], setLocMsg = locMsgState[1];
 
   var FEATURES = [
     { key: "stock", label: "庫存查詢", hint: "查型號" },
@@ -1899,11 +1904,30 @@ function GroupWhitelistManager() {
     });
   }
 
-  function setLocation(g, code) {
+  function pickLocation(g, code) {
+    var next = Object.assign({}, pendingLoc);
+    next[g.id] = code;
+    setPendingLoc(next);
+    var m = Object.assign({}, locMsg);
+    delete m[g.id];
+    setLocMsg(m);
+  }
+
+  function applyLocation(g) {
+    var code = pendingLoc[g.id];
+    if (!code || code === (g.location || DEFAULT_LOCATION)) return;
     GROUP_WHITELIST_COL.doc(g.id).set({ location: code }, { merge: true }).then(function () {
+      var m = Object.assign({}, locMsg);
+      m[g.id] = "✅ 已套用";
+      setLocMsg(m);
+      var next = Object.assign({}, pendingLoc);
+      delete next[g.id];
+      setPendingLoc(next);
       load();
     }).catch(function () {
-      setMsg("❌ 儲位更新失敗");
+      var m = Object.assign({}, locMsg);
+      m[g.id] = "❌ 更新失敗";
+      setLocMsg(m);
     });
   }
 
@@ -1914,9 +1938,18 @@ function GroupWhitelistManager() {
 
   return h("div", { style: { background: "#fff", borderRadius: 14, padding: 20, boxShadow: "0 1px 6px rgba(0,0,0,0.07)" } },
     h("div", { style: { fontWeight: 800, fontSize: 16, color: "#1A237E", marginBottom: 4 } }, "🔐 LINE 群組白名單與權限"),
-    h("div", { style: { fontSize: 12, color: "#888", marginBottom: 14, lineHeight: 1.6 } },
-      "只有加入白名單的群組才能使用機器人。每個群組可個別指定要查詢哪一個儲位，並開關四項查詢功能。取得群組 ID：把機器人拉進群組後，在群組裡打「groupid」。"
+    h("div", { style: { fontSize: 12, color: "#888", marginBottom: 10, lineHeight: 1.6 } },
+      "只有加入白名單的群組才能使用機器人。每個群組可個別指定要查詢哪一個儲位（選好後要按「確定套用」才生效），並開關四項查詢功能。取得群組 ID：把機器人拉進群組後，在群組裡打「groupid」。"
     ),
+    (function () {
+      var codes = Object.keys(props.locations || {});
+      if (codes.length === 0) {
+        return h("div", { style: { fontSize: 12, padding: "10px 12px", borderRadius: 8, background: "#FFF3E0", color: "#E65100", marginBottom: 14, lineHeight: 1.6 } },
+          "⚠️ 資料庫尚無各儲位資料，目前所有群組都會查到預設儲位（" + DEFAULT_LOCATION + "）的庫存。請先到上方「上傳 SAP 庫存表」重新上傳一次，儲位切換才會生效。");
+      }
+      return h("div", { style: { fontSize: 11, color: "#2E7D32", marginBottom: 14 } },
+        "✓ 資料庫已有 " + codes.length + " 個儲位的庫存資料：" + codes.sort().join("、"));
+    })(),
     h("input", {
       value: name, onChange: function (e) { setName(e.target.value); },
       placeholder: "群組名稱（例如：南屯經銷商群）",
@@ -1950,18 +1983,41 @@ function GroupWhitelistManager() {
                     style: { fontSize: 11, color: "#C62828", border: "1px solid #FFCDD2", background: "#fff", borderRadius: 6, padding: "4px 10px", cursor: "pointer", fontFamily: "inherit", flexShrink: 0, marginLeft: 8 }
                   }, "移除")
                 ),
-                h("div", { style: { display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" } },
-                  h("span", { style: { fontSize: 12, color: "#888", flexShrink: 0 } }, "查詢儲位"),
-                  h("select", {
-                    value: g.location || DEFAULT_LOCATION,
-                    onChange: function (e) { setLocation(g, e.target.value); },
-                    style: { flex: 1, minWidth: 180, padding: "7px 10px", borderRadius: 8, border: "1.5px solid #E0E0E0", fontSize: 13, outline: "none", fontFamily: "inherit", background: "#fff", color: "#1A237E", fontWeight: 700 }
-                  },
-                    TARGET_LOCATIONS.map(function (loc) {
-                      return h("option", { key: loc.code, value: loc.code }, loc.code + "　" + loc.label);
-                    })
-                  )
-                ),
+                (function () {
+                  var savedLoc = g.location || DEFAULT_LOCATION;
+                  var shownLoc = pendingLoc[g.id] !== undefined ? pendingLoc[g.id] : savedLoc;
+                  var dirty = shownLoc !== savedLoc;
+                  return h("div", { style: { marginBottom: 8 } },
+                    h("div", { style: { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" } },
+                      h("span", { style: { fontSize: 12, color: "#888", flexShrink: 0 } }, "查詢儲位"),
+                      h("select", {
+                        value: shownLoc,
+                        onChange: function (e) { pickLocation(g, e.target.value); },
+                        style: { flex: 1, minWidth: 170, padding: "7px 10px", borderRadius: 8, border: "1.5px solid " + (dirty ? "#FF9800" : "#E0E0E0"), fontSize: 13, outline: "none", fontFamily: "inherit", background: "#fff", color: "#1A237E", fontWeight: 700 }
+                      },
+                        TARGET_LOCATIONS.map(function (loc) {
+                          return h("option", { key: loc.code, value: loc.code }, loc.code + "　" + loc.label);
+                        })
+                      ),
+                      h("button", {
+                        onClick: function () { applyLocation(g); },
+                        disabled: !dirty,
+                        style: {
+                          padding: "7px 14px", borderRadius: 8, border: "none", fontFamily: "inherit",
+                          fontSize: 12, fontWeight: 700, flexShrink: 0,
+                          cursor: dirty ? "pointer" : "not-allowed",
+                          background: dirty ? "#FF9800" : "#EEE",
+                          color: dirty ? "#fff" : "#BBB"
+                        }
+                      }, "確定套用")
+                    ),
+                    dirty
+                      ? h("div", { style: { fontSize: 11, color: "#E65100", marginTop: 4 } }, "尚未套用，請按「確定套用」儲存")
+                      : (locMsg[g.id]
+                          ? h("div", { style: { fontSize: 11, color: locMsg[g.id].indexOf("✅") === 0 ? "#2E7D32" : "#C62828", marginTop: 4 } }, locMsg[g.id])
+                          : null)
+                  );
+                })(),
                 h("div", { style: { display: "flex", flexWrap: "wrap", gap: 6 } },
                   FEATURES.map(function (f) {
                     var on = p[f.key] !== false;
@@ -2459,7 +2515,7 @@ function InventoryApp() {
       h(PriceListUpload),
       h(ACPriceUpload),
       h(ConsignmentUpload),
-      h(GroupWhitelistManager),
+      h(GroupWhitelistManager, { locations: locationsData }),
       h(NotifySettingsManager),
       h(AnnouncementManager),
       h(AdjustPanel, { data: data, locations: locationsData, onApply: handleAdjust }),
