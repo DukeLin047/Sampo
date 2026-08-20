@@ -1935,37 +1935,24 @@ function GroupWhitelistManager(props) {
   function removeGroup(id) {
     if (!confirm("確定移除這個群組嗎？移除後機器人會立刻退出該 LINE 群組，查詢功能全部停用。")) return;
     setMsg("處理中…");
-    alert("除錯 0：開始執行移除流程（groupId=" + id + "）");
     GROUP_WHITELIST_COL.doc(id).delete().then(function () {
       load();
-      alert("除錯 1：白名單資料已刪除成功，準備通知機器人退出");
-
       if (!auth.currentUser) {
-        alert("除錯：auth.currentUser 是 null！你的登入狀態已經失效，這就是機器人沒退出的原因。請重新整理頁面、重新登入後再操作一次。");
         setMsg("❌ 登入狀態已失效，請重新整理頁面並重新登入後再試一次");
         return;
       }
-      alert("除錯 2：目前登入身分是 " + auth.currentUser.email + "，準備取得驗證 token");
-
       return auth.currentUser.getIdToken().then(function (idToken) {
-        alert("除錯 3：已取得 idToken（長度 " + idToken.length + "），準備呼叫\n" + LEAVE_GROUP_ENDPOINT);
         return fetch(LEAVE_GROUP_ENDPOINT, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: "Bearer " + idToken },
           body: JSON.stringify({ groupId: id })
         });
-      }).then(function (res) {
-        alert("除錯 4：收到 HTTP 回應，狀態碼 = " + res.status);
-        return res.json().catch(function () { return { ok: false, error: "回應不是合法的 JSON" }; });
-      }).then(function (data) {
-        alert("除錯 5：回應內容 = " + JSON.stringify(data));
+      }).then(function (res) { return res.json(); }).then(function (data) {
         setMsg(data && data.ok ? "✅ 已移除，機器人已退出該群組" : "⚠️ 已移除白名單，但機器人退出失敗（可能已不在群組內）");
-      }).catch(function (err) {
-        alert("除錯：fetch 過程發生例外 - " + (err && err.message ? err.message : String(err)));
+      }).catch(function () {
         setMsg("⚠️ 已移除白名單，但機器人退出失敗（可能已不在群組內）");
       });
-    }).catch(function (err) {
-      alert("除錯：刪除白名單這一步就失敗了 - " + (err && err.message ? err.message : String(err)));
+    }).catch(function () {
       setMsg("❌ 移除失敗");
     });
   }
