@@ -97,6 +97,14 @@ var TARGET_LOCATIONS = [
 ];
 var DEFAULT_LOCATION = "4326";
 
+// 群組「查詢儲位」下拉選單專用：多了一個「台中總貨源」特殊選項。
+// 選了之後，LINE 機器人查詢型號會同時列出 4325 / 4326 / 4324 各自的庫存。
+// （只用在白名單群組設定，不影響 SAP 上傳與手動調整，所以不放進 TARGET_LOCATIONS）
+var TC_ALL_CODE = "TC_ALL";
+var GROUP_LOCATION_OPTIONS = [
+  { code: TC_ALL_CODE, label: "台中總貨源（4325／4326／4324 一起列出）", special: true }
+].concat(TARGET_LOCATIONS);
+
 var PREFIX_RULES = [
   { prefixes: ["EM", "QM"], category: "電視" },
   { prefixes: ["SRF"],      category: "冷凍櫃" },
@@ -2016,8 +2024,8 @@ function GroupWhitelistManager(props) {
                         onChange: function (e) { pickLocation(g, e.target.value); },
                         style: { flex: 1, minWidth: 170, padding: "7px 10px", borderRadius: 8, border: "1.5px solid " + (dirty ? "#FF9800" : "#E0E0E0"), fontSize: 13, outline: "none", fontFamily: "inherit", background: "#fff", color: "#1A237E", fontWeight: 700 }
                       },
-                        TARGET_LOCATIONS.map(function (loc) {
-                          return h("option", { key: loc.code, value: loc.code }, loc.code + "　" + loc.label);
+                        GROUP_LOCATION_OPTIONS.map(function (loc) {
+                          return h("option", { key: loc.code, value: loc.code }, loc.special ? loc.label : loc.code + "　" + loc.label);
                         })
                       ),
                       h("button", {
