@@ -991,6 +991,81 @@ function parsePriceWorkbook(wb) {
   return sheets;
 }
 
+// ── 舊款型號保留（只留功能規格）──────────────────────────────
+// 價格表上傳後，如果某個型號不在新表裡（機型轉換、除役），
+// 只把它的「功能規格」存到 priceList/current 的 retired 陣列，
+// 批價、特促等其他資料一律不保留。保留 6 個月，之後自動清掉。
+// 舊款不在 sheets 裡，所以不會出現在價格表畫面、功能列表或 AI 參考資料；
+// 只有 LINE 機器人的「查XXX功能」「查XXX價錢」會用到它。
+var RETIRED_KEEP_MS = 180 * 24 * 60 * 60 * 1000;
+
+// 型號比對用的 key：跟機器人一樣，去掉看不見的字元、換行變空格、轉大寫，取第一段（主型號）
+function priceModelKey(raw) {
+  return String(raw)
+    .replace(/[\u200b-\u200d\ufeff]/g, "")
+    .replace(/[\r\n\t\u3000\u00a0]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toUpperCase()
+    .split(" ")[0];
+}
+
+// 把 "AU/AM-HF28D" 拆成 ["AU-HF28D", "AM-HF28D"]（跟機器人同一套規則）
+function expandSlashKey(q) {
+  var slashIdx = q.indexOf("/");
+  if (slashIdx === -1) return [q];
+  var afterSlash = q.slice(slashIdx + 1);
+  var dashIdx = afterSlash.indexOf("-");
+  if (dashIdx === -1) {
+    return q.split("/").map(function (s) { return s.trim(); }).filter(Boolean);
+  }
+  var suffix = afterSlash.slice(dashIdx);
+  return [q.slice(0, slashIdx) + suffix, afterSlash.slice(0, dashIdx) + suffix];
+}
+
+// oldData：資料庫裡目前的價格表文件；finalSheets：這次上傳後最終會存進去的 sheets
+// 回傳新的 retired 陣列
+function buildRetiredList(oldData, finalSheets) {
+  var now = Date.now();
+  var presentKeys = {};
+  (finalSheets || []).forEach(function (sh) {
+    (sh.items || []).forEach(function (it) {
+      var k = priceModelKey(it.model);
+      presentKeys[k] = true;
+      expandSlashKey(k).forEach(function (e) { presentKeys[e] = true; });
+    });
+  });
+  function isPresent(k) {
+    if (presentKeys[k]) return true;
+    return expandSlashKey(k).some(function (e) { return presentKeys[e]; });
+  }
+
+  var result = [];
+  var seen = {};
+
+  // 1) 這次新被拿掉的型號：只保留功能規格（沒有規格的就沒東西可留）
+  ((oldData && oldData.sheets) || []).forEach(function (sh) {
+    (sh.items || []).forEach(function (it) {
+      var k = priceModelKey(it.model);
+      if (!k || seen[k] || isPresent(k)) return;
+      if (!it.specs || it.specs.length === 0) return;
+      seen[k] = true;
+      result.push({ model: it.model, sheet: sh.name, cat: it.cat || "", specs: it.specs, retiredAt: now });
+    });
+  });
+
+  // 2) 先前就已經是舊款的：沒有重新出現在價格表、也還沒超過 6 個月，就繼續留著
+  ((oldData && oldData.retired) || []).forEach(function (r) {
+    var k = priceModelKey(r.model);
+    if (!k || seen[k] || isPresent(k)) return;
+    if (now - (r.retiredAt || now) > RETIRED_KEEP_MS) return;
+    seen[k] = true;
+    result.push(r);
+  });
+
+  return result;
+}
+
 // 價格表檢視（登入後可看）
 function PriceListView() {
   var dataState = useState(null);
@@ -1315,8 +1390,9 @@ function ACPriceUpload() {
           var merged = kept.concat(newSheets);
           var now = new Date().toLocaleString("zh-TW", { hour12: false });
           var totalItems = newSheets.reduce(function (s, sh) { return s + sh.items.length; }, 0);
-          PRICE_COL.doc("current").set({ title: data.title || "", sheets: merged, updatedAt: now }).then(function () {
-            setMsg("✅ 已更新冷氣價格表（" + newSheets.length + " 個分類，共 " + totalItems + " 項），其他分類保持不變");
+          var retired = buildRetiredList(data, merged);
+          PRICE_COL.doc("current").set({ title: data.title || "", sheets: merged, retired: retired, updatedAt: now }).then(function () {
+            setMsg("✅ 已更新冷氣價格表（" + newSheets.length + " 個分類，共 " + totalItems + " 項），其他分類保持不變" + (retired.length ? "；目前保留 " + retired.length + " 個舊款型號的功能規格" : ""));
             setBusy(false);
           }).catch(function () { setMsg("❌ 上傳失敗，請確認 Firestore 規則已加 priceList"); setBusy(false); });
         }).catch(function () { setMsg("❌ 讀取現有價格表失敗"); setBusy(false); });
@@ -1367,10 +1443,15 @@ function PriceListUpload() {
         if (!sheets.length) { setMsg("❌ 找不到有效的價格資料（需有『機型』標題列）"); setBusy(false); return; }
         var now = new Date().toLocaleString("zh-TW", { hour12: false });
         var totalItems = sheets.reduce(function (s, sh) { return s + sh.items.length; }, 0);
-        PRICE_COL.doc("current").set({ title: title || file.name.replace(/\.(xlsx|xls|xlsm)$/i, ""), sheets: sheets, updatedAt: now }).then(function () {
-          setMsg("✅ 已上傳價格表（" + sheets.length + " 個分類，共 " + totalItems + " 項）");
-          setBusy(false);
-        }).catch(function () { setMsg("❌ 上傳失敗，請確認 Firestore 規則已加 priceList"); setBusy(false); });
+        // 先讀出資料庫現有的價格表，才知道哪些型號這次被拿掉了（舊款只保留功能規格）
+        PRICE_COL.doc("current").get().then(function (doc) {
+          var oldData = doc.exists ? doc.data() : {};
+          var retired = buildRetiredList(oldData, sheets);
+          return PRICE_COL.doc("current").set({ title: title || file.name.replace(/\.(xlsx|xls|xlsm)$/i, ""), sheets: sheets, retired: retired, updatedAt: now }).then(function () {
+            setMsg("✅ 已上傳價格表（" + sheets.length + " 個分類，共 " + totalItems + " 項）" + (retired.length ? "；目前保留 " + retired.length + " 個舊款型號的功能規格" : ""));
+            setBusy(false);
+          }).catch(function () { setMsg("❌ 上傳失敗，請確認 Firestore 規則已加 priceList"); setBusy(false); });
+        }).catch(function () { setMsg("❌ 讀取現有價格表失敗，這次沒有上傳（避免弄丟舊款資料）"); setBusy(false); });
       } catch (err) {
         console.error(err);
         setMsg("❌ 解析失敗，請確認 Excel 格式");
