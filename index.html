@@ -2361,6 +2361,7 @@ function InventoryApp() {
           items: defaultItems,
           locations: locations,
           locationList: TARGET_LOCATIONS,
+          knownModels: allKnownModels,   // 完整型號清單：信箱自動上傳時，用它補齊「SAP 沒出現的型號 = 庫存 0」
           updatedAt: now
         }).then(function () {
           var totalItems = summaryParts.length;
