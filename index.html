@@ -1190,6 +1190,157 @@ function PriceListSystem() {
   );
 }
 
+// ============ 對外 API 金鑰管理（只有管理者可見）============
+var API_KEYS_COL = db.collection("apiKeys");
+var INVENTORY_API_URL = "https://inventoryapi-r4vahxz6yq-de.a.run.app";
+
+function apiSha256Hex(text) {
+  return crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)).then(function (buf) {
+    return Array.prototype.map.call(new Uint8Array(buf), function (b) {
+      return ("0" + b.toString(16)).slice(-2);
+    }).join("");
+  });
+}
+function apiGenToken() {
+  var bytes = new Uint8Array(24);
+  crypto.getRandomValues(bytes);
+  var s = btoa(String.fromCharCode.apply(null, bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  return "sk_" + s;
+}
+function apiToggleCode(arr, code) {
+  return arr.indexOf(code) === -1 ? arr.concat([code]) : arr.filter(function (c) { return c !== code; });
+}
+function apiLocChips(selected, onToggle) {
+  return h("div", { style: { display: "flex", flexWrap: "wrap", gap: 6 } },
+    TARGET_LOCATIONS.map(function (L) {
+      var on = selected.indexOf(L.code) !== -1;
+      return h("button", {
+        key: L.code,
+        onClick: function () { onToggle(L.code); },
+        style: {
+          padding: "5px 10px", borderRadius: 99, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+          border: "1.5px solid " + (on ? "#2E7D32" : "#E0E0E0"),
+          background: on ? "#E8F5E9" : "#FAFAFA", color: on ? "#2E7D32" : "#BBB"
+        }
+      }, (on ? "✓ " : "") + L.code + " " + L.label);
+    })
+  );
+}
+
+function ApiKeysManager() {
+  var listState = useState(null); var list = listState[0], setList = listState[1];
+  var nameState = useState(""); var newName = nameState[0], setNewName = nameState[1];
+  var locState = useState([]); var newLocs = locState[0], setNewLocs = locState[1];
+  var msgState = useState(""); var msg = msgState[0], setMsg = msgState[1];
+  var tokenState = useState(""); var newToken = tokenState[0], setNewToken = tokenState[1];
+  var busyState = useState(false); var busy = busyState[0], setBusy = busyState[1];
+
+  function load() {
+    API_KEYS_COL.get().then(function (snap) {
+      var arr = [];
+      snap.forEach(function (d) { arr.push(Object.assign({ id: d.id }, d.data())); });
+      arr.sort(function (a, b) { return String(b.createdAt || "").localeCompare(String(a.createdAt || "")); });
+      setList(arr);
+    }).catch(function () {
+      setList([]);
+      setMsg("❌ 讀取金鑰失敗，請確認 Firestore 規則已加 apiKeys");
+    });
+  }
+  useEffect(function () { load(); }, []);
+
+  function createKey() {
+    var name = newName.trim();
+    if (!name) { setMsg("請輸入對象名稱（例如：A客人）"); return; }
+    if (newLocs.length === 0) { setMsg("請至少勾選一個允許的儲位"); return; }
+    setBusy(true); setMsg(""); setNewToken("");
+    var token = apiGenToken();
+    apiSha256Hex(token).then(function (hash) {
+      return API_KEYS_COL.add({
+        name: name, keyHash: hash, keyPrefix: token.slice(0, 7) + "…",
+        locations: newLocs, enabled: true, createdAt: new Date().toLocaleString("zh-TW", { hour12: false })
+      });
+    }).then(function () {
+      setBusy(false); setNewToken(token); setNewName(""); setNewLocs([]); load();
+    }).catch(function () { setBusy(false); setMsg("❌ 建立失敗"); });
+  }
+
+  function saveLocs(k, locs) {
+    API_KEYS_COL.doc(k.id).update({ locations: locs }).then(function () {
+      setMsg("✅ 已更新「" + k.name + "」的儲位，立即生效"); load();
+    }).catch(function () { setMsg("❌ 更新失敗"); });
+  }
+  function toggleEnabled(k) {
+    API_KEYS_COL.doc(k.id).update({ enabled: !k.enabled }).then(function () {
+      setMsg((k.enabled ? "已停用" : "已啟用") + "「" + k.name + "」"); load();
+    }).catch(function () { setMsg("❌ 更新失敗"); });
+  }
+  function removeKey(k) {
+    if (!confirm("確定刪除「" + k.name + "」？刪除後對方的金鑰立即失效。")) return;
+    API_KEYS_COL.doc(k.id).delete().then(function () {
+      setMsg("已刪除「" + k.name + "」"); load();
+    }).catch(function () { setMsg("❌ 刪除失敗"); });
+  }
+
+  return h("div", { style: { background: "#fff", borderRadius: 14, padding: 20, boxShadow: "0 1px 6px rgba(0,0,0,0.07)" } },
+    h("div", { style: { fontWeight: 800, fontSize: 16, color: "#1A237E", marginBottom: 4 } }, "🔑 對外庫存 API 金鑰"),
+    h("div", { style: { fontSize: 12, color: "#888", marginBottom: 12, lineHeight: 1.6 } },
+      "每把金鑰只能看到勾選的儲位。儲位可以隨時改，改完立即生效（例如今天給 4326、明天改成 4325）。網址：" + INVENTORY_API_URL + "?location=4326，標頭帶 Authorization: Bearer 金鑰"),
+
+    h("div", { style: { border: "1px dashed #3949AB", borderRadius: 10, padding: 12, marginBottom: 14, background: "#F8F9FF" } },
+      h("input", {
+        value: newName, onChange: function (e) { setNewName(e.target.value); },
+        placeholder: "對象名稱（例如：A客人）",
+        style: { width: "100%", boxSizing: "border-box", padding: "10px 12px", marginBottom: 10, borderRadius: 8, border: "1.5px solid #E0E0E0", fontSize: 14, outline: "none", fontFamily: "inherit" }
+      }),
+      h("div", { style: { fontSize: 12, color: "#888", marginBottom: 6 } }, "允許的儲位"),
+      apiLocChips(newLocs, function (code) { setNewLocs(apiToggleCode(newLocs, code)); }),
+      h("button", {
+        onClick: createKey, disabled: busy,
+        style: { width: "100%", marginTop: 12, padding: "11px", borderRadius: 10, border: "none", background: "#1A237E", color: "#fff", fontWeight: 700, fontSize: 14, cursor: busy ? "not-allowed" : "pointer", fontFamily: "inherit" }
+      }, busy ? "建立中…" : "＋ 建立金鑰")
+    ),
+
+    newToken ? h("div", { style: { background: "#E8F5E9", border: "1.5px solid #2E7D32", borderRadius: 10, padding: 12, marginBottom: 14 } },
+      h("div", { style: { fontSize: 13, fontWeight: 700, color: "#2E7D32", marginBottom: 6 } }, "金鑰已建立，只會顯示這一次，請立刻複製給對方"),
+      h("div", { style: { fontFamily: "monospace", fontSize: 12, wordBreak: "break-all", background: "#fff", padding: 8, borderRadius: 6 } }, newToken),
+      h("button", {
+        onClick: function () { setNewToken(""); },
+        style: { marginTop: 8, padding: "6px 12px", borderRadius: 8, border: "1px solid #2E7D32", background: "#fff", color: "#2E7D32", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }
+      }, "我已複製，關閉")
+    ) : null,
+
+    msg ? h("div", { style: { fontSize: 12, marginBottom: 10, color: msg.indexOf("❌") === 0 ? "#C62828" : "#2E7D32" } }, msg) : null,
+
+    list === null
+      ? h("div", { style: { textAlign: "center", color: "#AAA", fontSize: 13, padding: 10 } }, "載入中…")
+      : list.length === 0
+        ? h("div", { style: { textAlign: "center", color: "#AAA", fontSize: 13, padding: 10 } }, "尚未建立任何金鑰")
+        : list.map(function (k) {
+            return h("div", { key: k.id, style: { border: "1px solid #E8EAF6", borderRadius: 10, padding: 12, marginBottom: 10, background: k.enabled ? "#fff" : "#F5F5F5" } },
+              h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 } },
+                h("div", null,
+                  h("span", { style: { fontWeight: 700, color: "#1A237E", fontSize: 14 } }, k.name),
+                  h("span", { style: { marginLeft: 8, fontSize: 11, color: k.enabled ? "#2E7D32" : "#C62828", fontWeight: 700 } }, k.enabled ? "啟用中" : "已停用")
+                ),
+                h("div", { style: { display: "flex", gap: 6 } },
+                  h("button", {
+                    onClick: function () { toggleEnabled(k); },
+                    style: { fontSize: 11, padding: "4px 10px", borderRadius: 6, border: "1px solid #C5CAE9", background: "#fff", color: "#3949AB", cursor: "pointer", fontFamily: "inherit" }
+                  }, k.enabled ? "停用" : "啟用"),
+                  h("button", {
+                    onClick: function () { removeKey(k); },
+                    style: { fontSize: 11, padding: "4px 10px", borderRadius: 6, border: "1px solid #FFCDD2", background: "#fff", color: "#C62828", cursor: "pointer", fontFamily: "inherit" }
+                  }, "刪除")
+                )
+              ),
+              h("div", { style: { fontSize: 11, color: "#888", marginBottom: 8 } },
+                "金鑰：" + (k.keyPrefix || "") + "　建立：" + (k.createdAt || "") + (k.lastUsedAt ? "　最後使用：" + k.lastUsedAt : "")),
+              apiLocChips(k.locations || [], function (code) { saveLocs(k, apiToggleCode(k.locations || [], code)); })
+            );
+          })
+  );
+}
+
 // 管理頁：低庫存通知設定
 var NOTIFY_COL = db.collection("settings");
 
@@ -2206,6 +2357,7 @@ function InventoryApp() {
   }
 
   useEffect(function () {
+    if (!currentUser) { return; }   // 庫存已關閉公開讀取，登入後才訂閱
     var unsubscribe = DOC_REF.onSnapshot(
       function (doc) {
         if (doc.exists) {
@@ -2224,7 +2376,7 @@ function InventoryApp() {
       }
     );
     return function () { unsubscribe(); };
-  }, []);
+  }, [currentUser]);
 
   var categories = ["全部"].concat(CATEGORY_LIST);
 
@@ -2628,6 +2780,7 @@ function InventoryApp() {
       h(ConsignmentUpload),
       h(GroupWhitelistManager, { locations: locationsData }),
       h(NotifySettingsManager),
+      h(ApiKeysManager),
       h(AnnouncementManager),
       h(AdjustPanel, { data: data, locations: locationsData, onApply: handleAdjust }),
       h(AdjustedList, { data: data, locations: locationsData, onApply: handleAdjust }),
